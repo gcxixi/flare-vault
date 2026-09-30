@@ -416,7 +416,7 @@ static NSString *Sha256ForFile(NSString *filePath) {
             chunkSize += jitter;
         }
 
-        if (remaining - chunkSize < kS3MinPartSize) {
+        if (remaining <= chunkSize + kS3MinPartSize) {
             // Avoid leaving a tail part smaller than 5MB
             chunkSize = remaining;
         }

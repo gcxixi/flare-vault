@@ -28,6 +28,13 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, assign) NSTimeInterval lazyMaxIntervalSeconds;
 @property (nonatomic, assign) BOOL lazyChunkJitter;
 
+// Exclude Settings (rsync style)
+@property (nonatomic, assign) BOOL useDefaultExcludes;
+@property (nonatomic, copy, nullable) NSString *customExcludeString;
+
+/// Returns the effective array of exclude patterns combining default and custom.
+- (NSArray<NSString *> *)effectiveExcludePatterns;
+
 + (instancetype)sharedManager;
 
 - (void)loadSettings;

@@ -6,7 +6,7 @@
 #import <Foundation/Foundation.h>
 #import "../FlareVault/Core/FVCryptoEngine.h"
 
-int main(int argc, const char * argv[]) {
+int main() {
     @autoreleasepool {
         NSLog(@"=== Starting FVCryptoEngine Unit Test ===");
 

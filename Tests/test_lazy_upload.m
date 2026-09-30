@@ -26,7 +26,7 @@ int main() {
             uint32_t jitter = arc4random_uniform(3 * 1024 * 1024);
             chunkSize += jitter;
 
-            if (remaining - chunkSize < minPartSize) {
+            if (remaining <= chunkSize + minPartSize) {
                 chunkSize = remaining;
             }
 

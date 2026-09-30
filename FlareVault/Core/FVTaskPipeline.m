@@ -21,12 +21,14 @@
 - (instancetype)initWithDirectoryPath:(NSString *)dirPath
                             publicKey:(SecKeyRef)publicKey
                      cloudflareConfig:(FVCloudflareConfig *)cfConfig
+                      excludePatterns:(nullable NSArray<NSString *> *)excludePatterns
 {
     self = [super init];
     if (self) {
         _sourceDirectoryPath = [dirPath copy];
         _publicKey = publicKey;
         _cloudflareConfig = cfConfig;
+        _excludePatterns = [excludePatterns copy];
     }
     return self;
 }
@@ -107,15 +109,21 @@
         safeLog([NSString stringWithFormat:@"🚀 开始任务: 正在分析目录 '%@'...", folderName], NO);
         safeProgress(@"打包目录", 0.05, @"正在统计目录文件...");
 
-        FVDirectoryStats *stats = [FVArchiver inspectDirectoryAtPath:self.sourceDirectoryPath];
-        safeLog([NSString stringWithFormat:@"📊 目录统计: 共 %lu 个文件, 原始体积: %@", (unsigned long)stats.fileCount, stats.formattedSize], NO);
+        FVDirectoryStats *stats = [FVArchiver inspectDirectoryAtPath:self.sourceDirectoryPath excludePatterns:self.excludePatterns];
+        if (stats.excludedCount > 0) {
+            safeLog([NSString stringWithFormat:@"📊 目录统计: 待打包 %lu 个文件 (体积: %@)，已自动排除过滤 %lu 项开发缓存/匹配项",
+                     (unsigned long)stats.fileCount, stats.formattedSize, (unsigned long)stats.excludedCount], NO);
+        } else {
+            safeLog([NSString stringWithFormat:@"📊 目录统计: 共 %lu 个文件, 体积: %@", (unsigned long)stats.fileCount, stats.formattedSize], NO);
+        }
 
-        safeProgress(@"打包目录", 0.15, @"正在压缩打包为 tar.gz...");
-        safeLog(@"📦 [阶段 1/3] 正在使用 tar 打包并 gzip 压缩...", NO);
+        safeProgress(@"打包目录", 0.15, @"正在压缩打包为 tar.gz (应用排除过滤)...");
+        safeLog(@"📦 [阶段 1/3] 正在使用 tar 打包并 gzip 压缩 (应用排除规则)...", NO);
 
         NSError *archiveErr = nil;
         BOOL packOk = [FVArchiver archiveDirectoryAtPath:self.sourceDirectoryPath
                                        toDestinationPath:self.currentTempTar
+                                         excludePatterns:self.excludePatterns
                                                    error:&archiveErr];
         if (!packOk || self.isCancelled) {
             safeLog([NSString stringWithFormat:@"[错误] 打包失败: %@", archiveErr.localizedDescription], YES);

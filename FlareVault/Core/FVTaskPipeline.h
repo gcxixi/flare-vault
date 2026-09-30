@@ -20,11 +20,13 @@ typedef void (^FVTaskCompletionBlock)(BOOL success, NSString * _Nullable remoteU
 @property (nonatomic, copy) NSString *sourceDirectoryPath;
 @property (nonatomic, assign) SecKeyRef publicKey;
 @property (nonatomic, strong) FVCloudflareConfig *cloudflareConfig;
+@property (nonatomic, copy, nullable) NSArray<NSString *> *excludePatterns;
 @property (nonatomic, assign, readonly) BOOL isRunning;
 
 - (instancetype)initWithDirectoryPath:(NSString *)dirPath
                             publicKey:(SecKeyRef)publicKey
-                     cloudflareConfig:(FVCloudflareConfig *)cfConfig;
+                     cloudflareConfig:(FVCloudflareConfig *)cfConfig
+                      excludePatterns:(nullable NSArray<NSString *> *)excludePatterns;
 
 - (void)startWithLogHandler:(nullable FVTaskLogBlock)logHandler
             progressHandler:(nullable FVTaskProgressBlock)progressHandler

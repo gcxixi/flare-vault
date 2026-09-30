@@ -26,6 +26,10 @@
   - 采用**混合信封加密体制**：动态生成一次性 256-bit AES 会话密钥与 256-bit HMAC 密钥，用 RSA-OAEP-SHA256 公钥加密信封。
   - 流式分块分段加密（1MB 缓冲），处理数十 GB 超大目录时常驻内存仍小于 15MB。
   - **Encrypt-then-MAC 强认证**：全报文计算 HMAC-SHA256，严防位翻转与密文篡改。
+- **🧹 rsync 风格目录排除过滤（Exclude Filters）**：
+  - **开箱即用内置规则**：默认内置并自动过滤现代项目中最庞大繁杂的开发与缓存缓冲目录，包括 `node_modules`、`node_moudles`、`.venv`、`venv`、`env`、`.env`、`__pycache__`、`*.pyc`、`*.pyo`、`.DS_Store`、`.git`、`.svn`、`.hg`、`build`、`dist`、`.cache`、`.next`、`.nuxt`、`target`、`Pods`、`DerivedData` 等。
+  - **自定义排除通配符**：支持用户自定义输入类似 `rsync --exclude` 的排除通配规则（如 `*.tmp`, `test_data/`, `*.log`, `cache/*` 等），支持空格或逗号分隔。
+  - **高性能剪枝扫描与原生打包**：在目录预扫描时使用 `NSDirectoryEnumerator skipDescendants` 直接剪枝跳过被排除的庞大目录树（避免扫描数十万小文件），打包时将 `--exclude` 标志精准传递给 macOS 原生 `/usr/bin/tar`。
 - **☁️ 直传 Cloudflare R2 对象存储**：
   - 原生 Objective-C 实现 AWS Signature Version 4 (SigV4) 鉴权。
   - 流式并发上传至 Cloudflare R2，实时显示传输百分比、已上传字节数及动态传输日志。
@@ -181,9 +185,11 @@ make run
 
 打开 **FlareVault** 应用后，仅需 4 步完成安全备份：
 
-1. **选择目录**：
+1. **选择目录与排除规则**：
    - 点击 **“浏览...”** 选取，或直接**拖拽目标文件夹**到下方的拖拽区域中。
-   - 应用会自动统计目录内的文件总数与未压缩总容量。
+   - **默认排除过滤**：应用默认勾选“默认排除开发与缓存目录”，自动屏蔽 `node_modules`、`.venv`、`venv`、`__pycache__`、`.git`、`build`、`dist` 等。
+   - **自定义排除规则**：可在输入框填入类似 `rsync --exclude` 的自定义通配符（如 `*.tmp, cache/*, secret.key`），以空格或逗号分隔。
+   - 界面会即时显示过滤后的文件总数、体积以及排除过滤的项数。
 2. **装载公钥（仅加密模式）**：
    - **方式 A（从密码生成）**：输入您的主密码，点击“生成新密钥对并提取公钥”。系统会弹窗引导您将解密用的私钥另存至安全离线介质（如 USB 盘），而应用本身**仅保留公钥**。
    - **方式 B（从钥匙串获取）**：点击“从钥匙串读取公钥”，直接从 macOS Keychain 中载入已存公钥。

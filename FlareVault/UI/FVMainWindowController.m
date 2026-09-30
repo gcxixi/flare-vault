@@ -18,6 +18,8 @@
 @property (nonatomic, strong) NSTextField *dirPathField;
 @property (nonatomic, strong) NSButton *browseDirButton;
 @property (nonatomic, strong) NSTextField *dirStatsLabel;
+@property (nonatomic, strong) NSButton *defaultExcludesCheckbox;
+@property (nonatomic, strong) NSTextField *customExcludesField;
 @property (nonatomic, strong) FVDragDropView *dragDropView;
 
 // Key UI
@@ -102,11 +104,11 @@
     outerScrollView.hasHorizontalScroller = NO;
     outerScrollView.borderType = NSNoBorder;
 
-    NSView *container = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, 940, 1080)];
+    NSView *container = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, 940, 1160)];
     outerScrollView.documentView = container;
     [contentView addSubview:outerScrollView];
 
-    CGFloat curY = 1050;
+    CGFloat curY = 1130;
 
     // --- Header Banner ---
     NSTextField *titleLabel = [self labelWithText:@"FlareVault" fontSize:22 bold:YES];
@@ -144,11 +146,33 @@
     curY -= 24;
     self.dirStatsLabel = [self labelWithText:@"未选择目录" fontSize:11 bold:NO];
     self.dirStatsLabel.textColor = [NSColor secondaryLabelColor];
-    self.dirStatsLabel.frame = NSMakeRect(32, curY, 600, 18);
+    self.dirStatsLabel.frame = NSMakeRect(32, curY, 860, 18);
     [container addSubview:self.dirStatsLabel];
 
-    curY -= 58;
-    self.dragDropView = [[FVDragDropView alloc] initWithFrame:NSMakeRect(30, curY, 870, 52)];
+    curY -= 28;
+    // Exclude Options (rsync style)
+    self.defaultExcludesCheckbox = [NSButton checkboxWithTitle:@"默认排除开发与缓存目录 (node_modules, .venv, venv, __pycache__, .git, build, dist 等)"
+                                                        target:self
+                                                        action:@selector(excludeSettingsChanged:)];
+    self.defaultExcludesCheckbox.state = NSControlStateValueOn;
+    self.defaultExcludesCheckbox.frame = NSMakeRect(30, curY, 640, 20);
+    self.defaultExcludesCheckbox.font = [NSFont systemFontOfSize:11 weight:NSFontWeightMedium];
+    [container addSubview:self.defaultExcludesCheckbox];
+
+    curY -= 28;
+    NSTextField *lblCustEx = [self labelWithText:@"自定义排除规则 (rsync --exclude 语法，空格或逗号分隔):" fontSize:11 bold:NO];
+    lblCustEx.frame = NSMakeRect(30, curY + 2, 330, 18);
+    [container addSubview:lblCustEx];
+
+    self.customExcludesField = [[NSTextField alloc] initWithFrame:NSMakeRect(365, curY, 535, 22)];
+    self.customExcludesField.placeholderString = @"例如: *.tmp, test_data/, *.log, cache/*";
+    self.customExcludesField.font = [NSFont userFixedPitchFontOfSize:11];
+    self.customExcludesField.target = self;
+    self.customExcludesField.action = @selector(excludeSettingsChanged:);
+    [container addSubview:self.customExcludesField];
+
+    curY -= 56;
+    self.dragDropView = [[FVDragDropView alloc] initWithFrame:NSMakeRect(30, curY, 870, 48)];
     self.dragDropView.delegate = self;
     __weak typeof(self) weakSelf = self;
     self.dragDropView.onDirectoryDropped = ^(NSString *path) {
@@ -486,6 +510,11 @@
         [self.lazyPresetPopup selectItemAtIndex:3]; // 自定义
     }
     [self updateLazyControlsState];
+
+    self.defaultExcludesCheckbox.state = cfg.useDefaultExcludes ? NSControlStateValueOn : NSControlStateValueOff;
+    if (cfg.customExcludeString.length > 0) {
+        self.customExcludesField.stringValue = cfg.customExcludeString;
+    }
 }
 
 - (void)saveCurrentConfiguration {
@@ -502,7 +531,15 @@
     cfg.lazyMinIntervalSeconds = [self.lazyMinIntervalField.stringValue doubleValue] ?: 2.0;
     cfg.lazyMaxIntervalSeconds = [self.lazyMaxIntervalField.stringValue doubleValue] ?: 8.0;
     cfg.lazyChunkJitter = (self.lazyChunkJitterCheckbox.state == NSControlStateValueOn);
+    cfg.useDefaultExcludes = (self.defaultExcludesCheckbox.state == NSControlStateValueOn);
+    cfg.customExcludeString = self.customExcludesField.stringValue;
     [cfg saveSettings];
+}
+
+- (void)excludeSettingsChanged:(id)sender {
+    (void)sender;
+    [self saveCurrentConfiguration];
+    [self updateSelectedDirectory:self.dirPathField.stringValue];
 }
 
 - (void)lazyUploadCheckboxToggled:(id)sender {
@@ -571,12 +608,18 @@
         return;
     }
 
+    NSArray<NSString *> *excludes = [[FVConfigManager sharedManager] effectiveExcludePatterns];
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
-        FVDirectoryStats *stats = [FVArchiver inspectDirectoryAtPath:path];
+        FVDirectoryStats *stats = [FVArchiver inspectDirectoryAtPath:path excludePatterns:excludes];
         dispatch_async(dispatch_get_main_queue(), ^{
             self.dirStatsLabel.textColor = [NSColor secondaryLabelColor];
-            self.dirStatsLabel.stringValue = [NSString stringWithFormat:@"已选目录: '%@' (共 %lu 个文件, 约 %@)",
-                                              [path lastPathComponent], (unsigned long)stats.fileCount, stats.formattedSize];
+            if (stats.excludedCount > 0) {
+                self.dirStatsLabel.stringValue = [NSString stringWithFormat:@"已选目录: '%@' (待打包 %lu 个文件, 约 %@ | 已排除 %lu 项开发缓存/匹配项)",
+                                                  [path lastPathComponent], (unsigned long)stats.fileCount, stats.formattedSize, (unsigned long)stats.excludedCount];
+            } else {
+                self.dirStatsLabel.stringValue = [NSString stringWithFormat:@"已选目录: '%@' (共 %lu 个文件, 约 %@)",
+                                                  [path lastPathComponent], (unsigned long)stats.fileCount, stats.formattedSize];
+            }
         });
     });
 }
@@ -792,9 +835,11 @@
     self.progressBar.doubleValue = 0.0;
     self.progressLabel.stringValue = @"任务启动中...";
 
+    NSArray<NSString *> *excludes = [[FVConfigManager sharedManager] effectiveExcludePatterns];
     self.currentPipeline = [[FVTaskPipeline alloc] initWithDirectoryPath:dir
                                                               publicKey:pubKey
-                                                       cloudflareConfig:cfConfig];
+                                                       cloudflareConfig:cfConfig
+                                                        excludePatterns:excludes];
 
     __weak typeof(self) weakSelf = self;
     [self.currentPipeline startWithLogHandler:^(NSString * _Nonnull message, BOOL isError) {

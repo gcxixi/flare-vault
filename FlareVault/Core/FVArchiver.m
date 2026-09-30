@@ -4,6 +4,7 @@
 //
 
 #import "FVArchiver.h"
+#import <fnmatch.h>
 
 NSString * const FVArchiverErrorDomain = @"com.flarevault.archiver";
 
@@ -15,13 +16,56 @@ NSString * const FVArchiverErrorDomain = @"com.flarevault.archiver";
 
 @implementation FVArchiver
 
++ (NSArray<NSString *> *)defaultExcludePatterns {
+    return @[
+        @"node_modules",
+        @"node_moudles", // support common typo gracefully
+        @".venv",
+        @"venv",
+        @"env",
+        @"__pycache__",
+        @"*.pyc",
+        @"*.pyo",
+        @".DS_Store",
+        @".git",
+        @".svn",
+        @".hg",
+        @"build",
+        @"dist",
+        @".cache",
+        @".next",
+        @".nuxt",
+        @"target",
+        @"Pods",
+        @"DerivedData"
+    ];
+}
+
+static BOOL MatchesAnyPattern(NSString *name, NSArray<NSString *> *patterns) {
+    if (!patterns || patterns.count == 0) return NO;
+    const char *cName = [name UTF8String];
+    for (NSString *pat in patterns) {
+        NSString *trimmed = [pat stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
+        if (trimmed.length == 0) continue;
+        if ([name isEqualToString:trimmed]) return YES;
+        if (fnmatch(trimmed.UTF8String, cName, 0) == 0) return YES;
+    }
+    return NO;
+}
+
 + (FVDirectoryStats *)inspectDirectoryAtPath:(NSString *)dirPath {
+    return [self inspectDirectoryAtPath:dirPath excludePatterns:[self defaultExcludePatterns]];
+}
+
++ (FVDirectoryStats *)inspectDirectoryAtPath:(NSString *)dirPath
+                             excludePatterns:(nullable NSArray<NSString *> *)excludePatterns
+{
     FVDirectoryStats *stats = [[FVDirectoryStats alloc] init];
     NSFileManager *fm = [NSFileManager defaultManager];
     NSURL *url = [NSURL fileURLWithPath:dirPath];
 
     NSDirectoryEnumerator *enumerator = [fm enumeratorAtURL:url
-                                 includingPropertiesForKeys:@[NSURLFileSizeKey, NSURLIsDirectoryKey]
+                                 includingPropertiesForKeys:@[NSURLFileSizeKey, NSURLIsDirectoryKey, NSURLNameKey]
                                                     options:0
                                                errorHandler:^BOOL(NSURL * _Nonnull url, NSError * _Nonnull error) {
         (void)url; (void)error;
@@ -31,10 +75,21 @@ NSString * const FVArchiverErrorDomain = @"com.flarevault.archiver";
     uint64_t totalSize = 0;
     NSUInteger fileCount = 0;
     NSUInteger dirCount = 0;
+    NSUInteger excludedCount = 0;
 
     for (NSURL *fileURL in enumerator) {
+        NSString *fileName = fileURL.lastPathComponent;
         NSNumber *isDir = nil;
         [fileURL getResourceValue:&isDir forKey:NSURLIsDirectoryKey error:nil];
+
+        if (MatchesAnyPattern(fileName, excludePatterns)) {
+            excludedCount++;
+            if ([isDir boolValue]) {
+                [enumerator skipDescendants];
+            }
+            continue;
+        }
+
         if ([isDir boolValue]) {
             dirCount++;
         } else {
@@ -48,11 +103,23 @@ NSString * const FVArchiverErrorDomain = @"com.flarevault.archiver";
     stats.totalSize = totalSize;
     stats.fileCount = fileCount;
     stats.dirCount = dirCount;
+    stats.excludedCount = excludedCount;
     return stats;
 }
 
 + (BOOL)archiveDirectoryAtPath:(NSString *)sourceDirPath
              toDestinationPath:(NSString *)destinationTarGzPath
+                         error:(NSError * _Nullable * _Nullable)error
+{
+    return [self archiveDirectoryAtPath:sourceDirPath
+                      toDestinationPath:destinationTarGzPath
+                        excludePatterns:[self defaultExcludePatterns]
+                                  error:error];
+}
+
++ (BOOL)archiveDirectoryAtPath:(NSString *)sourceDirPath
+             toDestinationPath:(NSString *)destinationTarGzPath
+               excludePatterns:(nullable NSArray<NSString *> *)excludePatterns
                          error:(NSError * _Nullable * _Nullable)error
 {
     NSFileManager *fm = [NSFileManager defaultManager];
@@ -73,9 +140,27 @@ NSString * const FVArchiverErrorDomain = @"com.flarevault.archiver";
     NSString *parentDir = [sourceDirPath stringByDeletingLastPathComponent];
     NSString *baseName = [sourceDirPath lastPathComponent];
 
+    NSMutableArray<NSString *> *args = [NSMutableArray array];
+    [args addObject:@"-czf"];
+    [args addObject:destinationTarGzPath];
+
+    if (excludePatterns && excludePatterns.count > 0) {
+        for (NSString *pat in excludePatterns) {
+            NSString *trimmed = [pat stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
+            if (trimmed.length > 0) {
+                [args addObject:@"--exclude"];
+                [args addObject:trimmed];
+            }
+        }
+    }
+
+    [args addObject:@"-C"];
+    [args addObject:parentDir];
+    [args addObject:baseName];
+
     NSTask *tarTask = [[NSTask alloc] init];
     tarTask.executableURL = [NSURL fileURLWithPath:@"/usr/bin/tar"];
-    tarTask.arguments = @[@"-czf", destinationTarGzPath, @"-C", parentDir, baseName];
+    tarTask.arguments = args;
 
     NSPipe *errPipe = [NSPipe pipe];
     tarTask.standardError = errPipe;

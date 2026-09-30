@@ -4,6 +4,7 @@
 //
 
 #import "FVConfigManager.h"
+#import "FVArchiver.h"
 #import <Security/Security.h>
 
 static NSString * const kFVPrefLastDir = @"FVLastDirectoryPath";
@@ -18,6 +19,9 @@ static NSString * const kFVPrefLazyUploadEnabled = @"FVLazyUploadEnabled";
 static NSString * const kFVPrefLazyMinInterval = @"FVLazyMinInterval";
 static NSString * const kFVPrefLazyMaxInterval = @"FVLazyMaxInterval";
 static NSString * const kFVPrefLazyChunkJitter = @"FVLazyChunkJitter";
+
+static NSString * const kFVPrefUseDefaultExcludes = @"FVUseDefaultExcludes";
+static NSString * const kFVPrefCustomExcludeString = @"FVCustomExcludeString";
 
 static NSString * const kFVKeychainService = @"com.flarevault.r2credentials";
 
@@ -41,6 +45,8 @@ static NSString * const kFVKeychainService = @"com.flarevault.r2credentials";
         _lazyMinIntervalSeconds = 2.0;
         _lazyMaxIntervalSeconds = 8.0;
         _lazyChunkJitter = YES;
+        _useDefaultExcludes = YES;
+        _customExcludeString = @"";
         [self loadSettings];
     }
     return self;
@@ -70,6 +76,10 @@ static NSString * const kFVKeychainService = @"com.flarevault.r2credentials";
     if ([defaults objectForKey:kFVPrefLazyChunkJitter]) {
         _lazyChunkJitter = [defaults boolForKey:kFVPrefLazyChunkJitter];
     }
+    if ([defaults objectForKey:kFVPrefUseDefaultExcludes]) {
+        _useDefaultExcludes = [defaults boolForKey:kFVPrefUseDefaultExcludes];
+    }
+    _customExcludeString = [defaults stringForKey:kFVPrefCustomExcludeString] ?: @"";
 
     if (_rememberCredentialsInKeychain) {
         [self loadSecretsFromKeychain];
@@ -89,11 +99,30 @@ static NSString * const kFVKeychainService = @"com.flarevault.r2credentials";
     [defaults setDouble:_lazyMinIntervalSeconds forKey:kFVPrefLazyMinInterval];
     [defaults setDouble:_lazyMaxIntervalSeconds forKey:kFVPrefLazyMaxInterval];
     [defaults setBool:_lazyChunkJitter forKey:kFVPrefLazyChunkJitter];
+    [defaults setBool:_useDefaultExcludes forKey:kFVPrefUseDefaultExcludes];
+    if (_customExcludeString) [defaults setObject:_customExcludeString forKey:kFVPrefCustomExcludeString];
     [defaults synchronize];
 
     if (_rememberCredentialsInKeychain) {
         [self saveSecretsToKeychain];
     }
+}
+
+- (NSArray<NSString *> *)effectiveExcludePatterns {
+    NSMutableArray<NSString *> *patterns = [NSMutableArray array];
+    if (self.useDefaultExcludes) {
+        [patterns addObjectsFromArray:[FVArchiver defaultExcludePatterns]];
+    }
+    if (self.customExcludeString.length > 0) {
+        NSArray<NSString *> *customItems = [self.customExcludeString componentsSeparatedByCharactersInSet:[NSCharacterSet characterSetWithCharactersInString:@", \n\t;"]];
+        for (NSString *item in customItems) {
+            NSString *trimmed = [item stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
+            if (trimmed.length > 0 && ![patterns containsObject:trimmed]) {
+                [patterns addObject:trimmed];
+            }
+        }
+    }
+    return patterns;
 }
 
 - (void)loadSecretsFromKeychain {
