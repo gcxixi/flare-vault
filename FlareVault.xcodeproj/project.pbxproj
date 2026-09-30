@@ -1,0 +1,373 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		10000001 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 20000001 /* main.m */; };
+		10000002 /* FVAppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = 20000002 /* FVAppDelegate.m */; };
+		10000003 /* FVMainWindowController.m in Sources */ = {isa = PBXBuildFile; fileRef = 20000003 /* FVMainWindowController.m */; };
+		10000004 /* FVDragDropView.m in Sources */ = {isa = PBXBuildFile; fileRef = 20000004 /* FVDragDropView.m */; };
+		10000005 /* FVCryptoEngine.m in Sources */ = {isa = PBXBuildFile; fileRef = 20000005 /* FVCryptoEngine.m */; };
+		10000006 /* FVKeyManager.m in Sources */ = {isa = PBXBuildFile; fileRef = 20000006 /* FVKeyManager.m */; };
+		10000007 /* FVArchiver.m in Sources */ = {isa = PBXBuildFile; fileRef = 20000007 /* FVArchiver.m */; };
+		10000008 /* FVCloudflareUploader.m in Sources */ = {isa = PBXBuildFile; fileRef = 20000008 /* FVCloudflareUploader.m */; };
+		10000009 /* FVConfigManager.m in Sources */ = {isa = PBXBuildFile; fileRef = 20000009 /* FVConfigManager.m */; };
+		1000000A /* FVTaskPipeline.m in Sources */ = {isa = PBXBuildFile; fileRef = 2000000A /* FVTaskPipeline.m */; };
+		1000000B /* AppIcon.icns in Resources */ = {isa = PBXBuildFile; fileRef = 2000000B /* AppIcon.icns */; };
+		1000000C /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 2000000C /* Cocoa.framework */; };
+		1000000D /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 2000000D /* Security.framework */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		00000001 /* FlareVault.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FlareVault.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		20000001 /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
+		20000002 /* FVAppDelegate.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = FVAppDelegate.m; sourceTree = "<group>"; };
+		20000012 /* FVAppDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = FVAppDelegate.h; sourceTree = "<group>"; };
+		20000003 /* FVMainWindowController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = FVMainWindowController.m; sourceTree = "<group>"; };
+		20000013 /* FVMainWindowController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = FVMainWindowController.h; sourceTree = "<group>"; };
+		20000004 /* FVDragDropView.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = FVDragDropView.m; sourceTree = "<group>"; };
+		20000014 /* FVDragDropView.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = FVDragDropView.h; sourceTree = "<group>"; };
+		20000005 /* FVCryptoEngine.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = FVCryptoEngine.m; sourceTree = "<group>"; };
+		20000015 /* FVCryptoEngine.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = FVCryptoEngine.h; sourceTree = "<group>"; };
+		20000006 /* FVKeyManager.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = FVKeyManager.m; sourceTree = "<group>"; };
+		20000016 /* FVKeyManager.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = FVKeyManager.h; sourceTree = "<group>"; };
+		20000007 /* FVArchiver.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = FVArchiver.m; sourceTree = "<group>"; };
+		20000017 /* FVArchiver.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = FVArchiver.h; sourceTree = "<group>"; };
+		20000008 /* FVCloudflareUploader.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = FVCloudflareUploader.m; sourceTree = "<group>"; };
+		20000018 /* FVCloudflareUploader.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = FVCloudflareUploader.h; sourceTree = "<group>"; };
+		20000009 /* FVConfigManager.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = FVConfigManager.m; sourceTree = "<group>"; };
+		20000019 /* FVConfigManager.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = FVConfigManager.h; sourceTree = "<group>"; };
+		2000000A /* FVTaskPipeline.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = FVTaskPipeline.m; sourceTree = "<group>"; };
+		2000001A /* FVTaskPipeline.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = FVTaskPipeline.h; sourceTree = "<group>"; };
+		2000000B /* AppIcon.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = AppIcon.icns; sourceTree = "<group>"; };
+		2000001B /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		2000000C /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = System/Library/Frameworks/Cocoa.framework; sourceTree = SDKROOT; };
+		2000000D /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = System/Library/Frameworks/Security.framework; sourceTree = SDKROOT; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		30000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1000000C /* Cocoa.framework in Frameworks */,
+				1000000D /* Security.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		40000001 = {
+			isa = PBXGroup;
+			children = (
+				40000002 /* FlareVault */,
+				40000006 /* Frameworks */,
+				40000007 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		40000002 /* FlareVault */ = {
+			isa = PBXGroup;
+			children = (
+				40000003 /* Main */,
+				40000004 /* UI */,
+				40000005 /* Core */,
+				40000008 /* Resources */,
+			);
+			path = FlareVault;
+			sourceTree = "<group>";
+		};
+		40000003 /* Main */ = {
+			isa = PBXGroup;
+			children = (
+				20000001 /* main.m */,
+				20000012 /* FVAppDelegate.h */,
+				20000002 /* FVAppDelegate.m */,
+			);
+			path = Main;
+			sourceTree = "<group>";
+		};
+		40000004 /* UI */ = {
+			isa = PBXGroup;
+			children = (
+				20000013 /* FVMainWindowController.h */,
+				20000003 /* FVMainWindowController.m */,
+				20000014 /* FVDragDropView.h */,
+				20000004 /* FVDragDropView.m */,
+			);
+			path = UI;
+			sourceTree = "<group>";
+		};
+		40000005 /* Core */ = {
+			isa = PBXGroup;
+			children = (
+				20000015 /* FVCryptoEngine.h */,
+				20000005 /* FVCryptoEngine.m */,
+				20000016 /* FVKeyManager.h */,
+				20000006 /* FVKeyManager.m */,
+				20000017 /* FVArchiver.h */,
+				20000007 /* FVArchiver.m */,
+				20000018 /* FVCloudflareUploader.h */,
+				20000008 /* FVCloudflareUploader.m */,
+				20000019 /* FVConfigManager.h */,
+				20000009 /* FVConfigManager.m */,
+				2000001A /* FVTaskPipeline.h */,
+				2000000A /* FVTaskPipeline.m */,
+			);
+			path = Core;
+			sourceTree = "<group>";
+		};
+		40000008 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				2000000B /* AppIcon.icns */,
+				2000001B /* Info.plist */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		40000006 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				2000000C /* Cocoa.framework */,
+				2000000D /* Security.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		40000007 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				00000001 /* FlareVault.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		50000001 /* FlareVault */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 60000001 /* Build configuration list for PBXNativeTarget "FlareVault" */;
+			buildPhases = (
+				30000002 /* Sources */,
+				30000001 /* Frameworks */,
+				30000003 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = FlareVault;
+			productName = FlareVault;
+			productReference = 00000001 /* FlareVault.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		70000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1500;
+			};
+			buildConfigurationList = 60000002 /* Build configuration list for PBXProject "FlareVault" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 40000001;
+			productRefGroup = 40000007 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				50000001 /* FlareVault */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		30000003 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1000000B /* AppIcon.icns in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		30000002 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				10000001 /* main.m in Sources */,
+				10000002 /* FVAppDelegate.m in Sources */,
+				10000003 /* FVMainWindowController.m in Sources */,
+				10000004 /* FVDragDropView.m in Sources */,
+				10000005 /* FVCryptoEngine.m in Sources */,
+				10000006 /* FVKeyManager.m in Sources */,
+				10000007 /* FVArchiver.m in Sources */,
+				10000008 /* FVCloudflareUploader.m in Sources */,
+				10000009 /* FVConfigManager.m in Sources */,
+				1000000A /* FVTaskPipeline.m in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		80000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDEFINED_VARIABLES = YES;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 12.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		80000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDEFINED_VARIABLES = YES;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 12.0;
+				MTL_FAST_MATH = YES;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		80000003 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				COMBINE_HIDPI_IMAGES = YES;
+				INFOPLIST_FILE = FlareVault/Resources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.flarevault.app;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Debug;
+		};
+		80000004 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				COMBINE_HIDPI_IMAGES = YES;
+				INFOPLIST_FILE = FlareVault/Resources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.flarevault.app;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		60000001 /* Build configuration list for PBXNativeTarget "FlareVault" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				80000003 /* Debug */,
+				80000004 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		60000002 /* Build configuration list for PBXProject "FlareVault" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				80000001 /* Debug */,
+				80000002 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+	};
+	rootObject = 70000001 /* Project object */;
+}

@@ -1,0 +1,34 @@
+# Build and Binary Outputs
+build/
+*.o
+*.dSYM
+*.app
+
+# Temporary and test artifacts
+*.flarevault
+*.tar.gz
+*.bin
+test_crypto
+test_keymanager
+test_archiver
+test_uploader
+run_pack_enc
+
+# Private keys (Never commit private keys!)
+*private*.pem
+*.key
+*.priv
+
+# macOS System Files
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# User specific Xcode files
+xcuserdata/
+DerivedData/
+*.xcworkspace
+!default.xcworkspace
