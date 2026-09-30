@@ -3,7 +3,7 @@
 //  FlareVault
 //
 //  End-to-End Orchestrator: Packaging -> Asymmetric Encryption -> Cloudflare Upload
-//  Supports both Full and Incremental Snapshot Backups.
+//  Supports multiple directories as well as Full and Incremental Snapshot Backups.
 //
 
 #import <Foundation/Foundation.h>
@@ -18,7 +18,8 @@ typedef void (^FVTaskCompletionBlock)(BOOL success, NSString * _Nullable remoteU
 
 @interface FVTaskPipeline : NSObject
 
-@property (nonatomic, copy) NSString *sourceDirectoryPath;
+@property (nonatomic, copy) NSArray<NSString *> *sourceDirectoryPaths;
+@property (nonatomic, copy) NSString *sourceDirectoryPath; // Backwards compatible getter/setter for first dir
 @property (nonatomic, assign) SecKeyRef publicKey;
 @property (nonatomic, strong) FVCloudflareConfig *cloudflareConfig;
 @property (nonatomic, copy, nullable) NSArray<NSString *> *excludePatterns;
@@ -36,6 +37,12 @@ typedef void (^FVTaskCompletionBlock)(BOOL success, NSString * _Nullable remoteU
                      cloudflareConfig:(FVCloudflareConfig *)cfConfig
                       excludePatterns:(nullable NSArray<NSString *> *)excludePatterns
                           incremental:(BOOL)incremental;
+
+- (instancetype)initWithDirectoryPaths:(NSArray<NSString *> *)dirPaths
+                             publicKey:(SecKeyRef)publicKey
+                      cloudflareConfig:(FVCloudflareConfig *)cfConfig
+                       excludePatterns:(nullable NSArray<NSString *> *)excludePatterns
+                           incremental:(BOOL)incremental;
 
 - (void)startWithLogHandler:(nullable FVTaskLogBlock)logHandler
              progressHandler:(nullable FVTaskProgressBlock)progressHandler

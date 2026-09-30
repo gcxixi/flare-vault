@@ -26,6 +26,13 @@
   - 采用**混合信封加密体制**：动态生成一次性 256-bit AES 会话密钥与 256-bit HMAC 密钥，用 RSA-OAEP-SHA256 公钥加密信封。
   - 流式分块分段加密（1MB 缓冲），处理数十 GB 超大目录时常驻内存仍小于 15MB。
   - **Encrypt-then-MAC 强认证**：全报文计算 HMAC-SHA256，严防位翻转与密文篡改。
+- **🗂️ 多目录批量配置与独立管线**：
+  - 原生 `NSTableView` 目录清单管理，支持一次性多选添加（`NSOpenPanel allowsMultipleSelection`）与直接从 Finder 拖拽多个文件夹至列表。
+  - 每行目录支持独立勾选启用/停用、即时查看目录名称、快照模式状态与完整路径。
+  - 任务管线（`FVTaskPipeline`）按序自动串行处理所有已启用的目录，各个目录的快照账本、加密归档与云端存储路径相互独立隔离。
+- **⏱️ 增量备份与快照差异链（带删除墓碑）**：
+  - 基于文件修改时间（mtime）、体积与快速校验的本地快照账本（Snapshot Ledger），自动跳过未变更文件，大幅降低带宽与加密开销。
+  - 完整记录文件删除“墓碑”（Tombstones），跨版本还原时自动清理失效文件，保证目录状态完全一致。
 - **🧹 rsync 风格目录排除过滤（Exclude Filters）**：
   - **开箱即用内置规则**：默认内置并自动过滤现代项目中最庞大繁杂的开发与缓存缓冲目录，包括 `node_modules`、`node_moudles`、`.venv`、`venv`、`env`、`.env`、`__pycache__`、`*.pyc`、`*.pyo`、`.DS_Store`、`.git`、`.svn`、`.hg`、`build`、`dist`、`.cache`、`.next`、`.nuxt`、`target`、`Pods`、`DerivedData` 等。
   - **自定义排除通配符**：支持用户自定义输入类似 `rsync --exclude` 的排除通配规则（如 `*.tmp`, `test_data/`, `*.log`, `cache/*` 等），支持空格或逗号分隔。

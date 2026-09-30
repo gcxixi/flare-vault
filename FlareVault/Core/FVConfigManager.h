@@ -3,6 +3,7 @@
 //  FlareVault
 //
 //  Persistent configuration and Keychain secret storage.
+//  Supports multiple configured directories.
 //
 
 #import <Foundation/Foundation.h>
@@ -10,9 +11,24 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+@interface FVDirectoryConfig : NSObject <NSSecureCoding>
+@property (nonatomic, copy) NSString *path;
+@property (nonatomic, assign) BOOL enabled;
+@property (nonatomic, copy, readonly) NSString *displayName;
+
+- (instancetype)initWithPath:(NSString *)path enabled:(BOOL)enabled;
+- (NSDictionary *)toDictionary;
++ (instancetype)fromDictionary:(NSDictionary *)dict;
+@end
+
 @interface FVConfigManager : NSObject
 
+/// Configured backup directories
+@property (nonatomic, copy) NSArray<FVDirectoryConfig *> *directoryConfigs;
+
+/// Legacy single directory accessor for backwards compatibility
 @property (nonatomic, copy, nullable) NSString *lastDirectoryPath;
+
 @property (nonatomic, copy, nullable) NSString *lastPublicKeyPEM;
 @property (nonatomic, copy, nullable) NSString *cloudflareAccountId;
 @property (nonatomic, copy, nullable) NSString *cloudflareBucketName;
@@ -37,6 +53,13 @@ NS_ASSUME_NONNULL_BEGIN
 
 /// Returns the effective array of exclude patterns combining default and custom.
 - (NSArray<NSString *> *)effectiveExcludePatterns;
+
+/// Multi-directory helper methods
+- (void)addDirectoryPath:(NSString *)path;
+- (void)removeDirectoryPath:(NSString *)path;
+- (void)setDirectoryPath:(NSString *)path enabled:(BOOL)enabled;
+- (void)clearDirectories;
+- (NSArray<NSString *> *)enabledDirectoryPaths;
 
 + (instancetype)sharedManager;
 

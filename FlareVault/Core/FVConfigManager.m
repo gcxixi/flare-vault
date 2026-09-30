@@ -7,6 +7,7 @@
 #import "FVArchiver.h"
 #import <Security/Security.h>
 
+static NSString * const kFVPrefDirectoryConfigs = @"FVDirectoryConfigs";
 static NSString * const kFVPrefLastDir = @"FVLastDirectoryPath";
 static NSString * const kFVPrefLastPubKey = @"FVLastPublicKeyPEM";
 static NSString * const kFVPrefAccountId = @"FVCloudflareAccountId";
@@ -26,6 +27,54 @@ static NSString * const kFVPrefIncrementalBackupEnabled = @"FVIncrementalBackupE
 
 static NSString * const kFVKeychainService = @"com.flarevault.r2credentials";
 
+@implementation FVDirectoryConfig
+
++ (BOOL)supportsSecureCoding {
+    return YES;
+}
+
+- (instancetype)initWithPath:(NSString *)path enabled:(BOOL)enabled {
+    self = [super init];
+    if (self) {
+        _path = [path copy];
+        _enabled = enabled;
+    }
+    return self;
+}
+
+- (NSString *)displayName {
+    return [_path lastPathComponent] ?: _path;
+}
+
+- (void)encodeWithCoder:(NSCoder *)coder {
+    [coder encodeObject:self.path forKey:@"path"];
+    [coder encodeBool:self.enabled forKey:@"enabled"];
+}
+
+- (nullable instancetype)initWithCoder:(NSCoder *)coder {
+    self = [super init];
+    if (self) {
+        _path = [coder decodeObjectOfClass:[NSString class] forKey:@"path"];
+        _enabled = [coder decodeBoolForKey:@"enabled"];
+    }
+    return self;
+}
+
+- (NSDictionary *)toDictionary {
+    return @{
+        @"path": self.path ?: @"",
+        @"enabled": @(self.enabled)
+    };
+}
+
++ (instancetype)fromDictionary:(NSDictionary *)dict {
+    NSString *p = dict[@"path"] ?: @"";
+    BOOL en = dict[@"enabled"] ? [dict[@"enabled"] boolValue] : YES;
+    return [[FVDirectoryConfig alloc] initWithPath:p enabled:en];
+}
+
+@end
+
 @implementation FVConfigManager
 
 + (instancetype)sharedManager {
@@ -40,6 +89,7 @@ static NSString * const kFVKeychainService = @"com.flarevault.r2credentials";
 - (instancetype)init {
     self = [super init];
     if (self) {
+        _directoryConfigs = @[];
         _cloudflareRemotePrefix = @"backups/";
         _rememberCredentialsInKeychain = YES;
         _lazyUploadEnabled = NO;
@@ -62,6 +112,22 @@ static NSString * const kFVKeychainService = @"com.flarevault.r2credentials";
     _cloudflareBucketName = [defaults stringForKey:kFVPrefBucket];
     _cloudflareRemotePrefix = [defaults stringForKey:kFVPrefPrefix] ?: @"backups/";
     _cloudflareCustomEndpoint = [defaults stringForKey:kFVPrefCustomEndpoint];
+
+    // Load multi-directory configs
+    NSArray *savedDirs = [defaults arrayForKey:kFVPrefDirectoryConfigs];
+    NSMutableArray<FVDirectoryConfig *> *dirs = [NSMutableArray array];
+    if ([savedDirs isKindOfClass:[NSArray class]] && savedDirs.count > 0) {
+        for (id item in savedDirs) {
+            if ([item isKindOfClass:[NSDictionary class]]) {
+                [dirs addObject:[FVDirectoryConfig fromDictionary:item]];
+            } else if ([item isKindOfClass:[NSString class]]) {
+                [dirs addObject:[[FVDirectoryConfig alloc] initWithPath:item enabled:YES]];
+            }
+        }
+    } else if (_lastDirectoryPath.length > 0) {
+        [dirs addObject:[[FVDirectoryConfig alloc] initWithPath:_lastDirectoryPath enabled:YES]];
+    }
+    _directoryConfigs = [dirs copy];
 
     if ([defaults objectForKey:kFVPrefRememberKeychain]) {
         _rememberCredentialsInKeychain = [defaults boolForKey:kFVPrefRememberKeychain];
@@ -96,7 +162,21 @@ static NSString * const kFVKeychainService = @"com.flarevault.r2credentials";
 
 - (void)saveSettings {
     NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
-    if (_lastDirectoryPath) [defaults setObject:_lastDirectoryPath forKey:kFVPrefLastDir];
+    
+    NSMutableArray *dicts = [NSMutableArray arrayWithCapacity:_directoryConfigs.count];
+    for (FVDirectoryConfig *cfg in _directoryConfigs) {
+        [dicts addObject:[cfg toDictionary]];
+    }
+    [defaults setObject:dicts forKey:kFVPrefDirectoryConfigs];
+
+    if (_directoryConfigs.count > 0) {
+        _lastDirectoryPath = _directoryConfigs.firstObject.path;
+        [defaults setObject:_lastDirectoryPath forKey:kFVPrefLastDir];
+    } else {
+        _lastDirectoryPath = nil;
+        [defaults removeObjectForKey:kFVPrefLastDir];
+    }
+
     if (_lastPublicKeyPEM) [defaults setObject:_lastPublicKeyPEM forKey:kFVPrefLastPubKey];
     if (_cloudflareAccountId) [defaults setObject:_cloudflareAccountId forKey:kFVPrefAccountId];
     if (_cloudflareBucketName) [defaults setObject:_cloudflareBucketName forKey:kFVPrefBucket];
@@ -117,83 +197,135 @@ static NSString * const kFVKeychainService = @"com.flarevault.r2credentials";
     }
 }
 
+- (void)addDirectoryPath:(NSString *)path {
+    if (!path || path.length == 0) return;
+    NSString *stdPath = [path stringByStandardizingPath];
+    for (FVDirectoryConfig *cfg in self.directoryConfigs) {
+        if ([[cfg.path stringByStandardizingPath] isEqualToString:stdPath]) {
+            return;
+        }
+    }
+    NSMutableArray *arr = [self.directoryConfigs mutableCopy];
+    [arr addObject:[[FVDirectoryConfig alloc] initWithPath:stdPath enabled:YES]];
+    self.directoryConfigs = [arr copy];
+    [self saveSettings];
+}
+
+- (void)removeDirectoryPath:(NSString *)path {
+    if (!path) return;
+    NSString *stdPath = [path stringByStandardizingPath];
+    NSMutableArray *arr = [NSMutableArray array];
+    for (FVDirectoryConfig *cfg in self.directoryConfigs) {
+        if (![[cfg.path stringByStandardizingPath] isEqualToString:stdPath]) {
+            [arr addObject:cfg];
+        }
+    }
+    self.directoryConfigs = [arr copy];
+    [self saveSettings];
+}
+
+- (void)setDirectoryPath:(NSString *)path enabled:(BOOL)enabled {
+    if (!path) return;
+    NSString *stdPath = [path stringByStandardizingPath];
+    NSMutableArray *arr = [NSMutableArray array];
+    for (FVDirectoryConfig *cfg in self.directoryConfigs) {
+        if ([[cfg.path stringByStandardizingPath] isEqualToString:stdPath]) {
+            [arr addObject:[[FVDirectoryConfig alloc] initWithPath:cfg.path enabled:enabled]];
+        } else {
+            [arr addObject:cfg];
+        }
+    }
+    self.directoryConfigs = [arr copy];
+    [self saveSettings];
+}
+
+- (void)clearDirectories {
+    self.directoryConfigs = @[];
+    [self saveSettings];
+}
+
+- (NSArray<NSString *> *)enabledDirectoryPaths {
+    NSMutableArray<NSString *> *res = [NSMutableArray array];
+    for (FVDirectoryConfig *cfg in self.directoryConfigs) {
+        if (cfg.enabled && cfg.path.length > 0) {
+            [res addObject:cfg.path];
+        }
+    }
+    return [res copy];
+}
+
 - (NSArray<NSString *> *)effectiveExcludePatterns {
     NSMutableArray<NSString *> *patterns = [NSMutableArray array];
     if (self.useDefaultExcludes) {
         [patterns addObjectsFromArray:[FVArchiver defaultExcludePatterns]];
     }
     if (self.customExcludeString.length > 0) {
-        NSArray<NSString *> *customItems = [self.customExcludeString componentsSeparatedByCharactersInSet:[NSCharacterSet characterSetWithCharactersInString:@", \n\t;"]];
-        for (NSString *item in customItems) {
+        NSArray *components = [self.customExcludeString componentsSeparatedByCharactersInSet:[NSCharacterSet characterSetWithCharactersInString:@", "]];
+        for (NSString *item in components) {
             NSString *trimmed = [item stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
-            if (trimmed.length > 0 && ![patterns containsObject:trimmed]) {
+            if (trimmed.length > 0) {
                 [patterns addObject:trimmed];
             }
         }
     }
-    return patterns;
-}
-
-- (void)loadSecretsFromKeychain {
-    NSDictionary *query = @{
-        (id)kSecClass: (id)kSecClassGenericPassword,
-        (id)kSecAttrService: kFVKeychainService,
-        (id)kSecReturnData: (id)kCFBooleanTrue,
-        (id)kSecMatchLimit: (id)kSecMatchLimitOne
-    };
-
-    CFTypeRef result = NULL;
-    OSStatus status = SecItemCopyMatching((__bridge CFDictionaryRef)query, &result);
-    if (status == errSecSuccess && result) {
-        NSData *data = CFBridgingRelease(result);
-        NSDictionary *dict = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
-        if ([dict isKindOfClass:[NSDictionary class]]) {
-            _cloudflareAccessKeyId = dict[@"accessKeyId"];
-            _cloudflareSecretAccessKey = dict[@"secretAccessKey"];
-        }
-    }
-}
-
-- (void)saveSecretsToKeychain {
-    if (!_cloudflareAccessKeyId && !_cloudflareSecretAccessKey) return;
-
-    NSMutableDictionary *dict = [NSMutableDictionary dictionary];
-    if (_cloudflareAccessKeyId) dict[@"accessKeyId"] = _cloudflareAccessKeyId;
-    if (_cloudflareSecretAccessKey) dict[@"secretAccessKey"] = _cloudflareSecretAccessKey;
-
-    NSData *data = [NSJSONSerialization dataWithJSONObject:dict options:0 error:nil];
-    if (!data) return;
-
-    NSDictionary *searchQuery = @{
-        (id)kSecClass: (id)kSecClassGenericPassword,
-        (id)kSecAttrService: kFVKeychainService
-    };
-
-    NSDictionary *updateAttrs = @{
-        (id)kSecValueData: data
-    };
-
-    OSStatus status = SecItemUpdate((__bridge CFDictionaryRef)searchQuery, (__bridge CFDictionaryRef)updateAttrs);
-    if (status == errSecItemNotFound) {
-        NSMutableDictionary *newQuery = [searchQuery mutableCopy];
-        [newQuery addEntriesFromDictionary:updateAttrs];
-        SecItemAdd((__bridge CFDictionaryRef)newQuery, NULL);
-    }
+    return [patterns copy];
 }
 
 - (FVCloudflareConfig *)cloudflareConfig {
     FVCloudflareConfig *cfg = [[FVCloudflareConfig alloc] init];
     cfg.accountId = self.cloudflareAccountId ?: @"";
     cfg.bucketName = self.cloudflareBucketName ?: @"";
-    cfg.accessKeyId = self.cloudflareAccessKeyId ?: @"";
-    cfg.secretAccessKey = self.cloudflareSecretAccessKey ?: @"";
     cfg.remotePrefix = self.cloudflareRemotePrefix ?: @"backups/";
     cfg.customEndpoint = self.cloudflareCustomEndpoint;
+    cfg.accessKeyId = self.cloudflareAccessKeyId ?: @"";
+    cfg.secretAccessKey = self.cloudflareSecretAccessKey ?: @"";
     cfg.lazyUploadEnabled = self.lazyUploadEnabled;
     cfg.lazyMinIntervalSeconds = self.lazyMinIntervalSeconds;
     cfg.lazyMaxIntervalSeconds = self.lazyMaxIntervalSeconds;
     cfg.lazyChunkJitter = self.lazyChunkJitter;
     return cfg;
+}
+
+- (void)saveSecretsToKeychain {
+    if (self.cloudflareAccessKeyId.length == 0 && self.cloudflareSecretAccessKey.length == 0) return;
+
+    NSDictionary *creds = @{
+        @"accessKeyId": self.cloudflareAccessKeyId ?: @"",
+        @"secretAccessKey": self.cloudflareSecretAccessKey ?: @""
+    };
+    NSData *data = [NSJSONSerialization dataWithJSONObject:creds options:0 error:nil];
+    if (!data) return;
+
+    NSDictionary *query = @{
+        (__bridge id)kSecClass: (__bridge id)kSecClassGenericPassword,
+        (__bridge id)kSecAttrService: kFVKeychainService,
+        (__bridge id)kSecAttrAccount: @"cloudflare_r2",
+    };
+    SecItemDelete((__bridge CFDictionaryRef)query);
+
+    NSMutableDictionary *addQuery = [query mutableCopy];
+    addQuery[(__bridge id)kSecValueData] = data;
+    SecItemAdd((__bridge CFDictionaryRef)addQuery, NULL);
+}
+
+- (void)loadSecretsFromKeychain {
+    NSDictionary *query = @{
+        (__bridge id)kSecClass: (__bridge id)kSecClassGenericPassword,
+        (__bridge id)kSecAttrService: kFVKeychainService,
+        (__bridge id)kSecAttrAccount: @"cloudflare_r2",
+        (__bridge id)kSecReturnData: @YES,
+        (__bridge id)kSecMatchLimit: (__bridge id)kSecMatchLimitOne
+    };
+    CFTypeRef result = NULL;
+    OSStatus status = SecItemCopyMatching((__bridge CFDictionaryRef)query, &result);
+    if (status == errSecSuccess && result) {
+        NSData *data = (__bridge_transfer NSData *)result;
+        NSDictionary *creds = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+        if ([creds isKindOfClass:[NSDictionary class]]) {
+            _cloudflareAccessKeyId = creds[@"accessKeyId"];
+            _cloudflareSecretAccessKey = creds[@"secretAccessKey"];
+        }
+    }
 }
 
 @end

@@ -13,16 +13,18 @@
 #import "../Core/FVTaskPipeline.h"
 #import "../Core/FVSnapshotManager.h"
 
-@interface FVMainWindowController () <FVDragDropViewDelegate, NSTabViewDelegate>
+@interface FVMainWindowController () <NSTableViewDataSource, NSTableViewDelegate, FVDragDropViewDelegate, NSTabViewDelegate>
 
 // Directory UI
-@property (nonatomic, strong) NSTextField *dirPathField;
-@property (nonatomic, strong) NSButton *browseDirButton;
+@property (nonatomic, strong) NSTableView *directoriesTableView;
+@property (nonatomic, strong) NSButton *addDirectoryButton;
+@property (nonatomic, strong) NSButton *removeDirectoryButton;
+@property (nonatomic, strong) NSButton *clearDirectoriesButton;
 @property (nonatomic, strong) NSTextField *dirStatsLabel;
 @property (nonatomic, strong) NSButton *incrementalBackupCheckbox;
 @property (nonatomic, strong) NSButton *defaultExcludesCheckbox;
 @property (nonatomic, strong) NSTextField *customExcludesField;
-@property (nonatomic, strong) FVDragDropView *dragDropView;
+@property (nonatomic, strong) NSTextField *dirPathField; // legacy compatibility
 
 // Key UI
 @property (nonatomic, strong) NSSegmentedControl *keySourceControl;
@@ -129,33 +131,79 @@
 
     // --- SECTION 1: 源目录 ---
     curY -= 22;
-    NSTextField *sec1Title = [self labelWithText:@"源目录" fontSize:12 bold:YES];
-    sec1Title.frame = NSMakeRect(24, curY, 200, 16);
+    NSTextField *sec1Title = [self labelWithText:@"备份源目录 (支持多目录批量配置)" fontSize:12 bold:YES];
+    sec1Title.frame = NSMakeRect(24, curY, 300, 16);
     [container addSubview:sec1Title];
 
-    curY -= 28;
-    self.dirPathField = [[NSTextField alloc] initWithFrame:NSMakeRect(24, curY, 744, 24)];
-    self.dirPathField.placeholderString = @"输入或选择待备份目录路径";
-    self.dirPathField.target = self;
-    self.dirPathField.action = @selector(dirPathChanged:);
-    [container addSubview:self.dirPathField];
-
-    self.browseDirButton = [NSButton buttonWithTitle:@"浏览..." target:self action:@selector(browseDirectoryClicked:)];
-    self.browseDirButton.frame = NSMakeRect(776, curY - 1, 100, 26);
-    self.browseDirButton.bezelStyle = NSBezelStyleRounded;
-    [container addSubview:self.browseDirButton];
-
-    curY -= 22;
-    self.dirStatsLabel = [self labelWithText:@"未选择目录" fontSize:11 bold:NO];
+    self.dirStatsLabel = [self labelWithText:@"共配置 0 个目录" fontSize:11 bold:NO];
     self.dirStatsLabel.textColor = [NSColor secondaryLabelColor];
-    self.dirStatsLabel.frame = NSMakeRect(26, curY, 430, 16);
+    self.dirStatsLabel.alignment = NSTextAlignmentRight;
+    self.dirStatsLabel.frame = NSMakeRect(460, curY, 416, 16);
     [container addSubview:self.dirStatsLabel];
+
+    curY -= 104;
+    NSScrollView *tableScroll = [[NSScrollView alloc] initWithFrame:NSMakeRect(24, curY, 852, 100)];
+    tableScroll.hasVerticalScroller = YES;
+    tableScroll.hasHorizontalScroller = NO;
+    tableScroll.borderType = NSBezelBorder;
+
+    self.directoriesTableView = [[NSTableView alloc] initWithFrame:tableScroll.bounds];
+    self.directoriesTableView.usesAlternatingRowBackgroundColors = YES;
+    self.directoriesTableView.rowHeight = 22;
+    self.directoriesTableView.headerView = [[NSTableHeaderView alloc] init];
+    self.directoriesTableView.dataSource = self;
+    self.directoriesTableView.delegate = self;
+    [self.directoriesTableView registerForDraggedTypes:@[NSPasteboardTypeFileURL]];
+
+    NSTableColumn *colEnabled = [[NSTableColumn alloc] initWithIdentifier:@"enabled"];
+    colEnabled.title = @"启用";
+    colEnabled.width = 44;
+    colEnabled.resizingMask = NSTableColumnNoResizing;
+    [self.directoriesTableView addTableColumn:colEnabled];
+
+    NSTableColumn *colName = [[NSTableColumn alloc] initWithIdentifier:@"name"];
+    colName.title = @"目录名称";
+    colName.width = 160;
+    colName.resizingMask = NSTableColumnUserResizingMask;
+    [self.directoriesTableView addTableColumn:colName];
+
+    NSTableColumn *colSnap = [[NSTableColumn alloc] initWithIdentifier:@"snapshot"];
+    colSnap.title = @"快照模式";
+    colSnap.width = 160;
+    colSnap.resizingMask = NSTableColumnUserResizingMask;
+    [self.directoriesTableView addTableColumn:colSnap];
+
+    NSTableColumn *colPath = [[NSTableColumn alloc] initWithIdentifier:@"path"];
+    colPath.title = @"完整路径";
+    colPath.width = 450;
+    colPath.resizingMask = NSTableColumnUserResizingMask | NSTableColumnAutoresizingMask;
+    [self.directoriesTableView addTableColumn:colPath];
+
+    tableScroll.documentView = self.directoriesTableView;
+    [container addSubview:tableScroll];
+
+    // Button & Setting Controls Row below table
+    curY -= 28;
+    self.addDirectoryButton = [NSButton buttonWithTitle:@"添加目录..." target:self action:@selector(addDirectoryClicked:)];
+    self.addDirectoryButton.frame = NSMakeRect(24, curY, 100, 24);
+    self.addDirectoryButton.bezelStyle = NSBezelStyleRounded;
+    [container addSubview:self.addDirectoryButton];
+
+    self.removeDirectoryButton = [NSButton buttonWithTitle:@"移除" target:self action:@selector(removeDirectoryClicked:)];
+    self.removeDirectoryButton.frame = NSMakeRect(128, curY, 70, 24);
+    self.removeDirectoryButton.bezelStyle = NSBezelStyleRounded;
+    [container addSubview:self.removeDirectoryButton];
+
+    self.clearDirectoriesButton = [NSButton buttonWithTitle:@"清空" target:self action:@selector(clearDirectoriesClicked:)];
+    self.clearDirectoriesButton.frame = NSMakeRect(202, curY, 70, 24);
+    self.clearDirectoriesButton.bezelStyle = NSBezelStyleRounded;
+    [container addSubview:self.clearDirectoriesButton];
 
     self.incrementalBackupCheckbox = [NSButton checkboxWithTitle:@"增量备份 (基于快照差异)"
                                                           target:self
                                                           action:@selector(incrementalBackupToggled:)];
     self.incrementalBackupCheckbox.state = [FVConfigManager sharedManager].incrementalBackupEnabled ? NSControlStateValueOn : NSControlStateValueOff;
-    self.incrementalBackupCheckbox.frame = NSMakeRect(462, curY, 178, 18);
+    self.incrementalBackupCheckbox.frame = NSMakeRect(462, curY + 2, 178, 18);
     self.incrementalBackupCheckbox.font = [NSFont systemFontOfSize:11 weight:NSFontWeightRegular];
     [container addSubview:self.incrementalBackupCheckbox];
 
@@ -163,11 +211,11 @@
                                                         target:self
                                                         action:@selector(excludeSettingsChanged:)];
     self.defaultExcludesCheckbox.state = NSControlStateValueOn;
-    self.defaultExcludesCheckbox.frame = NSMakeRect(646, curY, 230, 18);
+    self.defaultExcludesCheckbox.frame = NSMakeRect(646, curY + 2, 230, 18);
     self.defaultExcludesCheckbox.font = [NSFont systemFontOfSize:11 weight:NSFontWeightRegular];
     [container addSubview:self.defaultExcludesCheckbox];
 
-    curY -= 24;
+    curY -= 26;
     NSTextField *lblCustEx = [self labelWithText:@"自定义排除:" fontSize:11 bold:NO];
     lblCustEx.frame = NSMakeRect(24, curY + 2, 70, 16);
     [container addSubview:lblCustEx];
@@ -178,15 +226,6 @@
     self.customExcludesField.target = self;
     self.customExcludesField.action = @selector(excludeSettingsChanged:);
     [container addSubview:self.customExcludesField];
-
-    curY -= 42;
-    self.dragDropView = [[FVDragDropView alloc] initWithFrame:NSMakeRect(24, curY, 852, 34)];
-    self.dragDropView.delegate = self;
-    __weak typeof(self) weakSelf = self;
-    self.dragDropView.onDirectoryDropped = ^(NSString *path) {
-        [weakSelf updateSelectedDirectory:path];
-    };
-    [container addSubview:self.dragDropView];
 
     curY -= 14;
     [self separatorWithY:curY inContainer:container];
@@ -483,9 +522,9 @@
 
 - (void)loadSavedConfiguration {
     FVConfigManager *cfg = [FVConfigManager sharedManager];
-    if (cfg.lastDirectoryPath.length > 0) {
-        [self updateSelectedDirectory:cfg.lastDirectoryPath];
-    }
+    [self.directoriesTableView reloadData];
+    [self updateDirectoriesStatsSummary];
+
     if (cfg.cloudflareAccountId.length > 0) {
         self.cfAccountIdField.stringValue = cfg.cloudflareAccountId;
     }
@@ -533,7 +572,7 @@
 
 - (void)saveCurrentConfiguration {
     FVConfigManager *cfg = [FVConfigManager sharedManager];
-    cfg.lastDirectoryPath = self.dirPathField.stringValue;
+    cfg.lastDirectoryPath = [cfg.enabledDirectoryPaths firstObject] ?: @"";
     cfg.cloudflareAccountId = self.cfAccountIdField.stringValue;
     cfg.cloudflareBucketName = self.cfBucketField.stringValue;
     cfg.cloudflareAccessKeyId = self.cfAccessKeyField.stringValue;
@@ -554,13 +593,15 @@
 - (void)incrementalBackupToggled:(id)sender {
     (void)sender;
     [self saveCurrentConfiguration];
-    [self updateSelectedDirectory:self.dirPathField.stringValue];
+    [self.directoriesTableView reloadData];
+    [self updateDirectoriesStatsSummary];
 }
 
 - (void)excludeSettingsChanged:(id)sender {
     (void)sender;
     [self saveCurrentConfiguration];
-    [self updateSelectedDirectory:self.dirPathField.stringValue];
+    [self.directoriesTableView reloadData];
+    [self updateDirectoriesStatsSummary];
 }
 
 - (void)lazyUploadCheckboxToggled:(id)sender {
@@ -591,65 +632,199 @@
     self.lazyChunkJitterCheckbox.enabled = enabled;
 }
 
-#pragma mark - Directory Selection
+#pragma mark - Directory Selection & TableView
 
-- (void)browseDirectoryClicked:(id)sender {
+- (void)updateDirectoriesStatsSummary {
+    NSArray<FVDirectoryConfig *> *configs = [FVConfigManager sharedManager].directoryConfigs;
+    NSUInteger total = configs.count;
+    NSUInteger enabled = 0;
+    for (FVDirectoryConfig *cfg in configs) {
+        if (cfg.enabled) enabled++;
+    }
+    if (total == 0) {
+        self.dirStatsLabel.stringValue = @"未添加目录 (点击下方添加或拖拽文件夹至列表)";
+        self.dirStatsLabel.textColor = [NSColor secondaryLabelColor];
+    } else {
+        self.dirStatsLabel.stringValue = [NSString stringWithFormat:@"已配置 %lu 个目录 (已启用 %lu 个)", (unsigned long)total, (unsigned long)enabled];
+        self.dirStatsLabel.textColor = (enabled > 0) ? [NSColor secondaryLabelColor] : [NSColor systemOrangeColor];
+    }
+}
+
+- (void)addDirectoryClicked:(id)sender {
     (void)sender;
     NSOpenPanel *panel = [NSOpenPanel openPanel];
     panel.canChooseFiles = NO;
     panel.canChooseDirectories = YES;
-    panel.allowsMultipleSelection = NO;
-    panel.prompt = @"选择此目录";
-    panel.message = @"请选择需要打包并加密上传的目录";
+    panel.allowsMultipleSelection = YES;
+    panel.prompt = @"添加目录";
+    panel.message = @"请选择需要打包并加密上传的目录（支持按住 Command 或 Shift 多选）";
 
     [panel beginSheetModalForWindow:self.window completionHandler:^(NSModalResponse result) {
-        if (result == NSModalResponseOK && panel.URL) {
-            [self updateSelectedDirectory:panel.URL.path];
+        if (result == NSModalResponseOK && panel.URLs.count > 0) {
+            for (NSURL *url in panel.URLs) {
+                [[FVConfigManager sharedManager] addDirectoryPath:url.path];
+            }
+            [self.directoriesTableView reloadData];
+            [self updateDirectoriesStatsSummary];
         }
     }];
 }
 
-- (void)dirPathChanged:(id)sender {
+- (void)removeDirectoryClicked:(id)sender {
     (void)sender;
-    [self updateSelectedDirectory:self.dirPathField.stringValue];
+    NSInteger row = self.directoriesTableView.selectedRow;
+    NSArray<FVDirectoryConfig *> *configs = [FVConfigManager sharedManager].directoryConfigs;
+    if (row >= 0 && row < (NSInteger)configs.count) {
+        FVDirectoryConfig *cfg = configs[row];
+        [[FVConfigManager sharedManager] removeDirectoryPath:cfg.path];
+        [self.directoriesTableView reloadData];
+        [self updateDirectoriesStatsSummary];
+    }
+}
+
+- (void)clearDirectoriesClicked:(id)sender {
+    (void)sender;
+    NSArray<FVDirectoryConfig *> *configs = [FVConfigManager sharedManager].directoryConfigs;
+    if (configs.count == 0) return;
+
+    NSAlert *alert = [[NSAlert alloc] init];
+    alert.messageText = @"清空所有目录";
+    alert.informativeText = @"确定要从列表中移除所有配置的目录吗？（不会删除磁盘实际文件）";
+    [alert addButtonWithTitle:@"清空"];
+    [alert addButtonWithTitle:@"取消"];
+    [alert beginSheetModalForWindow:self.window completionHandler:^(NSModalResponse result) {
+        if (result == NSAlertFirstButtonReturn) {
+            [[FVConfigManager sharedManager] clearDirectories];
+            [self.directoriesTableView reloadData];
+            [self updateDirectoriesStatsSummary];
+        }
+    }];
+}
+
+- (void)directoryRowCheckboxToggled:(NSButton *)sender {
+    NSInteger row = sender.tag;
+    NSArray<FVDirectoryConfig *> *configs = [FVConfigManager sharedManager].directoryConfigs;
+    if (row >= 0 && row < (NSInteger)configs.count) {
+        FVDirectoryConfig *cfg = configs[row];
+        BOOL enabled = (sender.state == NSControlStateValueOn);
+        [[FVConfigManager sharedManager] setDirectoryPath:cfg.path enabled:enabled];
+        [self updateDirectoriesStatsSummary];
+    }
+}
+
+#pragma mark - NSTableViewDataSource & NSTableViewDelegate
+
+- (NSInteger)numberOfRowsInTableView:(NSTableView *)tableView {
+    return (NSInteger)[FVConfigManager sharedManager].directoryConfigs.count;
+}
+
+- (NSView *)tableView:(NSTableView *)tableView viewForTableColumn:(NSTableColumn *)tableColumn row:(NSInteger)row {
+    NSArray<FVDirectoryConfig *> *configs = [FVConfigManager sharedManager].directoryConfigs;
+    if (row < 0 || row >= (NSInteger)configs.count) return nil;
+    FVDirectoryConfig *config = configs[row];
+
+    NSString *identifier = tableColumn.identifier;
+    if ([identifier isEqualToString:@"enabled"]) {
+        NSButton *chk = [tableView makeViewWithIdentifier:@"enabledCell" owner:self];
+        if (!chk || ![chk isKindOfClass:[NSButton class]]) {
+            chk = [NSButton checkboxWithTitle:@"" target:self action:@selector(directoryRowCheckboxToggled:)];
+            chk.identifier = @"enabledCell";
+        }
+        chk.tag = row;
+        chk.state = config.enabled ? NSControlStateValueOn : NSControlStateValueOff;
+        return chk;
+    } else if ([identifier isEqualToString:@"name"]) {
+        NSTextField *tf = [tableView makeViewWithIdentifier:@"nameCell" owner:self];
+        if (!tf || ![tf isKindOfClass:[NSTextField class]]) {
+            tf = [NSTextField labelWithString:@""];
+            tf.identifier = @"nameCell";
+            tf.font = [NSFont systemFontOfSize:11 weight:NSFontWeightMedium];
+        }
+        tf.stringValue = config.displayName ?: @"";
+        return tf;
+    } else if ([identifier isEqualToString:@"snapshot"]) {
+        NSTextField *tf = [tableView makeViewWithIdentifier:@"snapCell" owner:self];
+        if (!tf || ![tf isKindOfClass:[NSTextField class]]) {
+            tf = [NSTextField labelWithString:@""];
+            tf.identifier = @"snapCell";
+            tf.font = [NSFont systemFontOfSize:10];
+            tf.textColor = [NSColor secondaryLabelColor];
+        }
+        BOOL isInc = [FVConfigManager sharedManager].incrementalBackupEnabled;
+        if (isInc) {
+            NSDictionary *snap = [[FVSnapshotManager sharedManager] snapshotInfoForDirectory:config.path];
+            if (snap) {
+                tf.stringValue = [NSString stringWithFormat:@"增量快照 #%@", snap[@"sequenceNumber"]];
+            } else {
+                tf.stringValue = @"基线未建立";
+            }
+        } else {
+            tf.stringValue = @"全量打包";
+        }
+        return tf;
+    } else if ([identifier isEqualToString:@"path"]) {
+        NSTextField *tf = [tableView makeViewWithIdentifier:@"pathCell" owner:self];
+        if (!tf || ![tf isKindOfClass:[NSTextField class]]) {
+            tf = [NSTextField labelWithString:@""];
+            tf.identifier = @"pathCell";
+            tf.font = [NSFont userFixedPitchFontOfSize:10];
+            tf.textColor = [NSColor secondaryLabelColor];
+            tf.lineBreakMode = NSLineBreakByTruncatingMiddle;
+        }
+        tf.stringValue = config.path ?: @"";
+        return tf;
+    }
+
+    return nil;
+}
+
+#pragma mark - NSTableView Drag and Drop
+
+- (NSDragOperation)tableView:(NSTableView *)tableView validateDrop:(id<NSDraggingInfo>)info proposedRow:(NSInteger)row proposedDropOperation:(NSTableViewDropOperation)dropOperation {
+    (void)tableView; (void)row; (void)dropOperation;
+    NSPasteboard *pb = [info draggingPasteboard];
+    if ([pb canReadObjectForClasses:@[[NSURL class]] options:@{NSPasteboardURLReadingFileURLsOnlyKey: @YES}]) {
+        return NSDragOperationCopy;
+    }
+    return NSDragOperationNone;
+}
+
+- (BOOL)tableView:(NSTableView *)tableView acceptDrop:(id<NSDraggingInfo>)info row:(NSInteger)row dropOperation:(NSTableViewDropOperation)dropOperation {
+    (void)tableView; (void)row; (void)dropOperation;
+    NSPasteboard *pb = [info draggingPasteboard];
+    NSArray *urls = [pb readObjectsForClasses:@[[NSURL class]] options:@{NSPasteboardURLReadingFileURLsOnlyKey: @YES}];
+    BOOL added = NO;
+    for (NSURL *url in urls) {
+        BOOL isDir = NO;
+        if ([[NSFileManager defaultManager] fileExistsAtPath:url.path isDirectory:&isDir] && isDir) {
+            [[FVConfigManager sharedManager] addDirectoryPath:url.path];
+            added = YES;
+        }
+    }
+    if (added) {
+        [self.directoriesTableView reloadData];
+        [self updateDirectoriesStatsSummary];
+    }
+    return added;
+}
+
+#pragma mark - Legacy Compatibility
+
+- (NSTextField *)dirPathField {
+    if (!_dirPathField) {
+        _dirPathField = [[NSTextField alloc] init];
+    }
+    NSArray<NSString *> *dirs = [[FVConfigManager sharedManager] enabledDirectoryPaths];
+    _dirPathField.stringValue = dirs.firstObject ?: @"";
+    return _dirPathField;
 }
 
 - (void)updateSelectedDirectory:(NSString *)path {
-    self.dirPathField.stringValue = path ?: @"";
-    if (path.length == 0) {
-        self.dirStatsLabel.stringValue = @"未选择目录";
-        return;
+    if (path.length > 0) {
+        [[FVConfigManager sharedManager] addDirectoryPath:path];
+        [self.directoriesTableView reloadData];
+        [self updateDirectoriesStatsSummary];
     }
-
-    BOOL isDir = NO;
-    if (![[NSFileManager defaultManager] fileExistsAtPath:path isDirectory:&isDir] || !isDir) {
-        self.dirStatsLabel.stringValue = @"指定路径不是有效目录";
-        self.dirStatsLabel.textColor = [NSColor systemRedColor];
-        return;
-    }
-
-    NSArray<NSString *> *excludes = [[FVConfigManager sharedManager] effectiveExcludePatterns];
-    BOOL isInc = (self.incrementalBackupCheckbox.state == NSControlStateValueOn);
-    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
-        FVDirectoryStats *stats = [FVArchiver inspectDirectoryAtPath:path excludePatterns:excludes];
-        NSDictionary *snapInfo = isInc ? [[FVSnapshotManager sharedManager] snapshotInfoForDirectory:path] : nil;
-        dispatch_async(dispatch_get_main_queue(), ^{
-            self.dirStatsLabel.textColor = [NSColor secondaryLabelColor];
-            NSMutableString *msg = [NSMutableString stringWithFormat:@"已选: %lu 个文件 (%@)",
-                                    (unsigned long)stats.fileCount, stats.formattedSize];
-            if (stats.excludedCount > 0) {
-                [msg appendFormat:@" | 已排除 %lu 项", (unsigned long)stats.excludedCount];
-            }
-            if (isInc) {
-                if (snapInfo) {
-                    [msg appendFormat:@" | 增量快照: #%@", snapInfo[@"sequenceNumber"]];
-                } else {
-                    [msg appendString:@" | 增量模式 (下次建基线)"];
-                }
-            }
-            self.dirStatsLabel.stringValue = msg;
-        });
-    });
 }
 
 - (void)dragDropViewDidAcceptDirectoryPath:(NSString *)dirPath {
@@ -846,12 +1021,12 @@
     (void)sender;
     [self saveCurrentConfiguration];
 
-    NSString *dir = self.dirPathField.stringValue;
+    NSArray<NSString *> *dirs = [[FVConfigManager sharedManager] enabledDirectoryPaths];
     SecKeyRef pubKey = [FVKeyManager sharedManager].currentPublicKey;
     FVCloudflareConfig *cfConfig = [[FVConfigManager sharedManager] cloudflareConfig];
 
-    if (dir.length == 0) {
-        [self showErrorAlert:@"请先选择需要打包的目录。"];
+    if (dirs.count == 0) {
+        [self showErrorAlert:@"请至少选择并启用一个需要备份的目录。"];
         return;
     }
     if (!pubKey) {
@@ -867,15 +1042,15 @@
     self.actionButton.enabled = NO;
     self.cancelButton.enabled = YES;
     self.progressBar.doubleValue = 0.0;
-    self.progressLabel.stringValue = @"任务启动中...";
+    self.progressLabel.stringValue = [NSString stringWithFormat:@"任务启动中 (待处理 %lu 个目录)...", (unsigned long)dirs.count];
 
     NSArray<NSString *> *excludes = [[FVConfigManager sharedManager] effectiveExcludePatterns];
     BOOL isInc = (self.incrementalBackupCheckbox.state == NSControlStateValueOn);
-    self.currentPipeline = [[FVTaskPipeline alloc] initWithDirectoryPath:dir
-                                                              publicKey:pubKey
-                                                       cloudflareConfig:cfConfig
-                                                        excludePatterns:excludes
-                                                            incremental:isInc];
+    self.currentPipeline = [[FVTaskPipeline alloc] initWithDirectoryPaths:dirs
+                                                                publicKey:pubKey
+                                                         cloudflareConfig:cfConfig
+                                                          excludePatterns:excludes
+                                                              incremental:isInc];
 
     __weak typeof(self) weakSelf = self;
     [self.currentPipeline startWithLogHandler:^(NSString * _Nonnull message, BOOL isError) {
@@ -889,11 +1064,12 @@
         weakSelf.cancelButton.enabled = NO;
         if (success) {
             weakSelf.progressBar.doubleValue = 1.0;
-            weakSelf.progressLabel.stringValue = @"任务完成，数据已加密上传至 Cloudflare R2。";
-            [weakSelf updateSelectedDirectory:dir];
+            weakSelf.progressLabel.stringValue = @"任务完成，所有目录已加密上传至 Cloudflare R2。";
+            [weakSelf.directoriesTableView reloadData];
+            [weakSelf updateDirectoriesStatsSummary];
             NSAlert *alert = [[NSAlert alloc] init];
-            alert.messageText = @"打包加密与上传完成";
-            alert.informativeText = [NSString stringWithFormat:@"目录已完成非对称加密并上传至 Cloudflare R2。\n\n远程对象地址:\n%@", remoteUrl ?: @""];
+            alert.messageText = @"批量打包加密与上传完成";
+            alert.informativeText = [NSString stringWithFormat:@"已完成 %lu 个目录的非对称加密与上传至 Cloudflare R2。\n\n最后上传远程对象:\n%@", (unsigned long)dirs.count, remoteUrl ?: @""];
             [alert beginSheetModalForWindow:weakSelf.window completionHandler:nil];
         } else {
             weakSelf.progressLabel.stringValue = [NSString stringWithFormat:@"任务失败: %@", error.localizedDescription];
