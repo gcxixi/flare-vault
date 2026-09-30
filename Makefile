@@ -55,6 +55,8 @@ test:
 	@clang $(CFLAGS) $(FRAMEWORKS) FlareVault/Core/FVArchiver.m Tests/test_archiver.m -o $(BUILD_DIR)/test_archiver && $(BUILD_DIR)/test_archiver
 	@echo "==> Running Uploader Tests..."
 	@clang $(CFLAGS) $(FRAMEWORKS) FlareVault/Core/FVCloudflareUploader.m Tests/test_uploader.m -o $(BUILD_DIR)/test_uploader && $(BUILD_DIR)/test_uploader
+	@echo "==> Running Lazy Upload Stochastic Math Tests..."
+	@clang $(CFLAGS) $(FRAMEWORKS) FlareVault/Core/FVCloudflareUploader.m Tests/test_lazy_upload.m -o $(BUILD_DIR)/test_lazy_upload && $(BUILD_DIR)/test_lazy_upload
 	@echo "==> Running End-to-End Test Suite..."
 	@bash Scripts/test_e2e.sh
 	@echo "==> ALL TESTS PASSED SUCCESSFULLY!"

@@ -14,6 +14,11 @@ static NSString * const kFVPrefPrefix = @"FVCloudflareRemotePrefix";
 static NSString * const kFVPrefCustomEndpoint = @"FVCloudflareCustomEndpoint";
 static NSString * const kFVPrefRememberKeychain = @"FVRememberCredentialsInKeychain";
 
+static NSString * const kFVPrefLazyUploadEnabled = @"FVLazyUploadEnabled";
+static NSString * const kFVPrefLazyMinInterval = @"FVLazyMinInterval";
+static NSString * const kFVPrefLazyMaxInterval = @"FVLazyMaxInterval";
+static NSString * const kFVPrefLazyChunkJitter = @"FVLazyChunkJitter";
+
 static NSString * const kFVKeychainService = @"com.flarevault.r2credentials";
 
 @implementation FVConfigManager
@@ -32,6 +37,10 @@ static NSString * const kFVKeychainService = @"com.flarevault.r2credentials";
     if (self) {
         _cloudflareRemotePrefix = @"backups/";
         _rememberCredentialsInKeychain = YES;
+        _lazyUploadEnabled = NO;
+        _lazyMinIntervalSeconds = 2.0;
+        _lazyMaxIntervalSeconds = 8.0;
+        _lazyChunkJitter = YES;
         [self loadSettings];
     }
     return self;
@@ -49,6 +58,18 @@ static NSString * const kFVKeychainService = @"com.flarevault.r2credentials";
     if ([defaults objectForKey:kFVPrefRememberKeychain]) {
         _rememberCredentialsInKeychain = [defaults boolForKey:kFVPrefRememberKeychain];
     }
+    if ([defaults objectForKey:kFVPrefLazyUploadEnabled]) {
+        _lazyUploadEnabled = [defaults boolForKey:kFVPrefLazyUploadEnabled];
+    }
+    if ([defaults objectForKey:kFVPrefLazyMinInterval]) {
+        _lazyMinIntervalSeconds = [defaults doubleForKey:kFVPrefLazyMinInterval];
+    }
+    if ([defaults objectForKey:kFVPrefLazyMaxInterval]) {
+        _lazyMaxIntervalSeconds = [defaults doubleForKey:kFVPrefLazyMaxInterval];
+    }
+    if ([defaults objectForKey:kFVPrefLazyChunkJitter]) {
+        _lazyChunkJitter = [defaults boolForKey:kFVPrefLazyChunkJitter];
+    }
 
     if (_rememberCredentialsInKeychain) {
         [self loadSecretsFromKeychain];
@@ -64,6 +85,10 @@ static NSString * const kFVKeychainService = @"com.flarevault.r2credentials";
     if (_cloudflareRemotePrefix) [defaults setObject:_cloudflareRemotePrefix forKey:kFVPrefPrefix];
     if (_cloudflareCustomEndpoint) [defaults setObject:_cloudflareCustomEndpoint forKey:kFVPrefCustomEndpoint];
     [defaults setBool:_rememberCredentialsInKeychain forKey:kFVPrefRememberKeychain];
+    [defaults setBool:_lazyUploadEnabled forKey:kFVPrefLazyUploadEnabled];
+    [defaults setDouble:_lazyMinIntervalSeconds forKey:kFVPrefLazyMinInterval];
+    [defaults setDouble:_lazyMaxIntervalSeconds forKey:kFVPrefLazyMaxInterval];
+    [defaults setBool:_lazyChunkJitter forKey:kFVPrefLazyChunkJitter];
     [defaults synchronize];
 
     if (_rememberCredentialsInKeychain) {
@@ -126,6 +151,10 @@ static NSString * const kFVKeychainService = @"com.flarevault.r2credentials";
     cfg.secretAccessKey = self.cloudflareSecretAccessKey ?: @"";
     cfg.remotePrefix = self.cloudflareRemotePrefix ?: @"backups/";
     cfg.customEndpoint = self.cloudflareCustomEndpoint;
+    cfg.lazyUploadEnabled = self.lazyUploadEnabled;
+    cfg.lazyMinIntervalSeconds = self.lazyMinIntervalSeconds;
+    cfg.lazyMaxIntervalSeconds = self.lazyMaxIntervalSeconds;
+    cfg.lazyChunkJitter = self.lazyChunkJitter;
     return cfg;
 }
 

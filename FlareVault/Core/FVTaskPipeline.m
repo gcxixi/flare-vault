@@ -190,6 +190,9 @@
         safeLog([NSString stringWithFormat:@"🎯 目标 Bucket: '%@', 对象键: '%@'", self.cloudflareConfig.bucketName, remoteObjectKey], NO);
 
         self.activeUploader = [[FVCloudflareUploader alloc] initWithConfig:self.cloudflareConfig];
+        self.activeUploader.statusLogBlock = ^(NSString *logMsg) {
+            safeLog(logMsg, NO);
+        };
         [self.activeUploader uploadFileAtPath:self.currentTempEnc
                              remoteObjectKey:remoteObjectKey
                                     progress:^(double progress, int64_t bytesSent, int64_t totalBytes) {

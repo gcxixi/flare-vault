@@ -22,6 +22,12 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, copy, nullable) NSString *cloudflareSecretAccessKey;
 @property (nonatomic, assign) BOOL rememberCredentialsInKeychain;
 
+// Lazy Upload Settings
+@property (nonatomic, assign) BOOL lazyUploadEnabled;
+@property (nonatomic, assign) NSTimeInterval lazyMinIntervalSeconds;
+@property (nonatomic, assign) NSTimeInterval lazyMaxIntervalSeconds;
+@property (nonatomic, assign) BOOL lazyChunkJitter;
+
 + (instancetype)sharedManager;
 
 - (void)loadSettings;

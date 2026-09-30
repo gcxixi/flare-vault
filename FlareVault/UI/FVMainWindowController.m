@@ -40,6 +40,14 @@
 @property (nonatomic, strong) NSButton *testConnectionButton;
 @property (nonatomic, strong) NSButton *rememberCredsCheckbox;
 
+// Lazy Upload UI
+@property (nonatomic, strong) NSButton *lazyUploadCheckbox;
+@property (nonatomic, strong) NSPopUpButton *lazyPresetPopup;
+@property (nonatomic, strong) NSTextField *lazyMinIntervalField;
+@property (nonatomic, strong) NSTextField *lazyMaxIntervalField;
+@property (nonatomic, strong) NSButton *lazyChunkJitterCheckbox;
+@property (nonatomic, strong) NSTextField *lazyTipLabel;
+
 // Action & Progress UI
 @property (nonatomic, strong) NSButton *actionButton;
 @property (nonatomic, strong) NSButton *cancelButton;
@@ -94,11 +102,11 @@
     outerScrollView.hasHorizontalScroller = NO;
     outerScrollView.borderType = NSNoBorder;
 
-    NSView *container = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, 940, 960)];
+    NSView *container = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, 940, 1080)];
     outerScrollView.documentView = container;
     [contentView addSubview:outerScrollView];
 
-    CGFloat curY = 930;
+    CGFloat curY = 1050;
 
     // --- Header Banner ---
     NSTextField *titleLabel = [self labelWithText:@"FlareVault" fontSize:22 bold:YES];
@@ -314,6 +322,59 @@
     self.testConnectionButton.bezelStyle = NSBezelStyleRounded;
     [container addSubview:self.testConnectionButton];
 
+    curY -= 36;
+    // Row 4: Lazy Upload Master Switch
+    self.lazyUploadCheckbox = [NSButton checkboxWithTitle:@"启用惰性随机上传模式 (呈现离散调用与随机时序扰动，防内网流量突发误杀)"
+                                                   target:self
+                                                   action:@selector(lazyUploadCheckboxToggled:)];
+    self.lazyUploadCheckbox.frame = NSMakeRect(30, curY + 2, 600, 20);
+    self.lazyUploadCheckbox.font = [NSFont systemFontOfSize:12 weight:NSFontWeightMedium];
+    [container addSubview:self.lazyUploadCheckbox];
+
+    curY -= 32;
+    // Row 5: Preset Selector & Custom Intervals
+    NSTextField *lblPreset = [self labelWithText:@"调用扰动预设:" fontSize:12 bold:NO];
+    lblPreset.frame = NSMakeRect(45, curY + 2, 90, 18);
+    [container addSubview:lblPreset];
+
+    self.lazyPresetPopup = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(140, curY - 2, 230, 26) pullsDown:NO];
+    [self.lazyPresetPopup addItemsWithTitles:@[
+        @"轻度随机扰动 (1s ~ 4s 随机间隔)",
+        @"中度随机离散 (2s ~ 8s 随机间隔)",
+        @"深度隐匿低频 (6s ~ 20s 随机间隔)",
+        @"自定义间隔范围..."
+    ]];
+    self.lazyPresetPopup.target = self;
+    self.lazyPresetPopup.action = @selector(lazyPresetChanged:);
+    [container addSubview:self.lazyPresetPopup];
+
+    NSTextField *lblMin = [self labelWithText:@"最小(秒):" fontSize:12 bold:NO];
+    lblMin.frame = NSMakeRect(385, curY + 2, 60, 18);
+    [container addSubview:lblMin];
+
+    self.lazyMinIntervalField = [[NSTextField alloc] initWithFrame:NSMakeRect(450, curY, 55, 24)];
+    self.lazyMinIntervalField.stringValue = @"2.0";
+    [container addSubview:self.lazyMinIntervalField];
+
+    NSTextField *lblMax = [self labelWithText:@"最大(秒):" fontSize:12 bold:NO];
+    lblMax.frame = NSMakeRect(515, curY + 2, 60, 18);
+    [container addSubview:lblMax];
+
+    self.lazyMaxIntervalField = [[NSTextField alloc] initWithFrame:NSMakeRect(580, curY, 55, 24)];
+    self.lazyMaxIntervalField.stringValue = @"8.0";
+    [container addSubview:self.lazyMaxIntervalField];
+
+    self.lazyChunkJitterCheckbox = [NSButton checkboxWithTitle:@"随机变长分块 (5MB~8MB 扰动)" target:self action:nil];
+    self.lazyChunkJitterCheckbox.state = NSControlStateValueOn;
+    self.lazyChunkJitterCheckbox.frame = NSMakeRect(650, curY + 2, 230, 20);
+    [container addSubview:self.lazyChunkJitterCheckbox];
+
+    curY -= 24;
+    self.lazyTipLabel = [self labelWithText:@"💡 惰性模式将整个归档拆解为动态变长分块，并在每次 HTTP 远程调用之间注入密码学时序随机抖动与突发模拟，打破特征聚集，避免触发内网 IDS/DLP/流量突发监测误杀。" fontSize:11 bold:NO];
+    self.lazyTipLabel.textColor = [NSColor systemIndigoColor];
+    self.lazyTipLabel.frame = NSMakeRect(45, curY, 840, 20);
+    [container addSubview:self.lazyTipLabel];
+
     curY -= 18;
     [self separatorWithY:curY inContainer:container];
     curY -= 15;
@@ -409,6 +470,22 @@
         [[FVKeyManager sharedManager] loadPublicKeyFromPEM:cfg.lastPublicKeyPEM error:&err];
         [self updateKeyStatus];
     }
+
+    self.lazyUploadCheckbox.state = cfg.lazyUploadEnabled ? NSControlStateValueOn : NSControlStateValueOff;
+    self.lazyMinIntervalField.stringValue = [NSString stringWithFormat:@"%.1f", cfg.lazyMinIntervalSeconds];
+    self.lazyMaxIntervalField.stringValue = [NSString stringWithFormat:@"%.1f", cfg.lazyMaxIntervalSeconds];
+    self.lazyChunkJitterCheckbox.state = cfg.lazyChunkJitter ? NSControlStateValueOn : NSControlStateValueOff;
+
+    if (fabs(cfg.lazyMinIntervalSeconds - 1.0) < 0.1 && fabs(cfg.lazyMaxIntervalSeconds - 4.0) < 0.1) {
+        [self.lazyPresetPopup selectItemAtIndex:0];
+    } else if (fabs(cfg.lazyMinIntervalSeconds - 2.0) < 0.1 && fabs(cfg.lazyMaxIntervalSeconds - 8.0) < 0.1) {
+        [self.lazyPresetPopup selectItemAtIndex:1];
+    } else if (fabs(cfg.lazyMinIntervalSeconds - 6.0) < 0.1 && fabs(cfg.lazyMaxIntervalSeconds - 20.0) < 0.1) {
+        [self.lazyPresetPopup selectItemAtIndex:2];
+    } else {
+        [self.lazyPresetPopup selectItemAtIndex:3]; // 自定义
+    }
+    [self updateLazyControlsState];
 }
 
 - (void)saveCurrentConfiguration {
@@ -421,7 +498,40 @@
     cfg.cloudflareRemotePrefix = self.cfPrefixField.stringValue;
     cfg.rememberCredentialsInKeychain = (self.rememberCredsCheckbox.state == NSControlStateValueOn);
     cfg.lastPublicKeyPEM = [FVKeyManager sharedManager].currentPublicKeyPEM;
+    cfg.lazyUploadEnabled = (self.lazyUploadCheckbox.state == NSControlStateValueOn);
+    cfg.lazyMinIntervalSeconds = [self.lazyMinIntervalField.stringValue doubleValue] ?: 2.0;
+    cfg.lazyMaxIntervalSeconds = [self.lazyMaxIntervalField.stringValue doubleValue] ?: 8.0;
+    cfg.lazyChunkJitter = (self.lazyChunkJitterCheckbox.state == NSControlStateValueOn);
     [cfg saveSettings];
+}
+
+- (void)lazyUploadCheckboxToggled:(id)sender {
+    (void)sender;
+    [self updateLazyControlsState];
+}
+
+- (void)lazyPresetChanged:(id)sender {
+    (void)sender;
+    NSInteger idx = self.lazyPresetPopup.indexOfSelectedItem;
+    if (idx == 0) {
+        self.lazyMinIntervalField.stringValue = @"1.0";
+        self.lazyMaxIntervalField.stringValue = @"4.0";
+    } else if (idx == 1) {
+        self.lazyMinIntervalField.stringValue = @"2.0";
+        self.lazyMaxIntervalField.stringValue = @"8.0";
+    } else if (idx == 2) {
+        self.lazyMinIntervalField.stringValue = @"6.0";
+        self.lazyMaxIntervalField.stringValue = @"20.0";
+    }
+}
+
+- (void)updateLazyControlsState {
+    BOOL enabled = (self.lazyUploadCheckbox.state == NSControlStateValueOn);
+    self.lazyPresetPopup.enabled = enabled;
+    self.lazyMinIntervalField.enabled = enabled;
+    self.lazyMaxIntervalField.enabled = enabled;
+    self.lazyChunkJitterCheckbox.enabled = enabled;
+    self.lazyTipLabel.alphaValue = enabled ? 1.0 : 0.4;
 }
 
 #pragma mark - Directory Selection
