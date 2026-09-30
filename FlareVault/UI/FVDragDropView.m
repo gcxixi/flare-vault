@@ -81,10 +81,9 @@
 
 - (void)drawRect:(NSRect)dirtyRect {
     [super drawRect:dirtyRect];
-    // Draw centered helper prompt icon & text
-    NSString *prompt = @"📁 拖拽待备份文件夹至此区域，或点击上方“浏览...”按钮选择";
+    NSString *prompt = @"拖拽待备份目录至此区域，或点击上方“浏览...”选择";
     NSDictionary *attrs = @{
-        NSFontAttributeName: [NSFont systemFontOfSize:13 weight:NSFontWeightMedium],
+        NSFontAttributeName: [NSFont systemFontOfSize:12 weight:NSFontWeightRegular],
         NSForegroundColorAttributeName: [NSColor secondaryLabelColor]
     };
     NSSize strSize = [prompt sizeWithAttributes:attrs];

@@ -106,19 +106,19 @@
         self.currentTempEnc = [tempDir stringByAppendingPathComponent:[NSString stringWithFormat:@"%@.flarevault", baseFileName]];
 
         // STAGE 1: Inspect & Pack Directory
-        safeLog([NSString stringWithFormat:@"🚀 开始任务: 正在分析目录 '%@'...", folderName], NO);
+        safeLog([NSString stringWithFormat:@"[INFO] 开始分析目录: '%@'", folderName], NO);
         safeProgress(@"打包目录", 0.05, @"正在统计目录文件...");
 
         FVDirectoryStats *stats = [FVArchiver inspectDirectoryAtPath:self.sourceDirectoryPath excludePatterns:self.excludePatterns];
         if (stats.excludedCount > 0) {
-            safeLog([NSString stringWithFormat:@"📊 目录统计: 待打包 %lu 个文件 (体积: %@)，已自动排除过滤 %lu 项开发缓存/匹配项",
+            safeLog([NSString stringWithFormat:@"[INFO] 待打包 %lu 个文件 (%@)，已排除 %lu 项开发缓存/匹配项",
                      (unsigned long)stats.fileCount, stats.formattedSize, (unsigned long)stats.excludedCount], NO);
         } else {
-            safeLog([NSString stringWithFormat:@"📊 目录统计: 共 %lu 个文件, 体积: %@", (unsigned long)stats.fileCount, stats.formattedSize], NO);
+            safeLog([NSString stringWithFormat:@"[INFO] 目录共 %lu 个文件，体积: %@", (unsigned long)stats.fileCount, stats.formattedSize], NO);
         }
 
-        safeProgress(@"打包目录", 0.15, @"正在压缩打包为 tar.gz (应用排除过滤)...");
-        safeLog(@"📦 [阶段 1/3] 正在使用 tar 打包并 gzip 压缩 (应用排除规则)...", NO);
+        safeProgress(@"打包目录", 0.15, @"正在压缩打包为 tar.gz...");
+        safeLog(@"[STAGE 1/3] 执行 tar 归档与 gzip 压缩 (应用排除规则)...", NO);
 
         NSError *archiveErr = nil;
         BOOL packOk = [FVArchiver archiveDirectoryAtPath:self.sourceDirectoryPath
@@ -126,7 +126,7 @@
                                          excludePatterns:self.excludePatterns
                                                    error:&archiveErr];
         if (!packOk || self.isCancelled) {
-            safeLog([NSString stringWithFormat:@"[错误] 打包失败: %@", archiveErr.localizedDescription], YES);
+            safeLog([NSString stringWithFormat:@"[ERROR] 打包失败: %@", archiveErr.localizedDescription], YES);
             [self cleanupTempFiles];
             dispatch_async(dispatch_get_main_queue(), ^{
                 self.isRunning = NO;
@@ -137,12 +137,11 @@
 
         NSDictionary *tarAttrs = [[NSFileManager defaultManager] attributesOfItemAtPath:self.currentTempTar error:nil];
         NSString *tarSizeStr = [NSByteCountFormatter stringFromByteCount:[tarAttrs fileSize] countStyle:NSByteCountFormatterCountStyleFile];
-        safeLog([NSString stringWithFormat:@"✅ 打包完成！压缩后体积: %@", tarSizeStr], NO);
+        safeLog([NSString stringWithFormat:@"[STAGE 1/3] 打包完成，压缩体积: %@", tarSizeStr], NO);
         safeProgress(@"打包目录", 0.33, @"打包完成");
 
         // STAGE 2: Asymmetric Hybrid Encryption
-        safeLog(@"🔒 [阶段 2/3] 开始非对称加密 (RSA-OAEP + AES-256-CBC + HMAC-SHA256)...", NO);
-        safeLog(@"ℹ️ 应用仅使用公钥加密，本地无私钥，无法逆向解密。", NO);
+        safeLog(@"[STAGE 2/3] 执行非对称流式加密 (RSA-OAEP + AES-256-CBC + HMAC-SHA256)...", NO);
 
         NSDictionary *metadata = @{
             @"folder_name": folderName,
@@ -167,7 +166,7 @@
         } error:&encErr];
 
         if (!encOk || self.isCancelled) {
-            safeLog([NSString stringWithFormat:@"[错误] 加密失败: %@", encErr.localizedDescription], YES);
+            safeLog([NSString stringWithFormat:@"[ERROR] 加密失败: %@", encErr.localizedDescription], YES);
             [self cleanupTempFiles];
             dispatch_async(dispatch_get_main_queue(), ^{
                 self.isRunning = NO;
@@ -179,7 +178,7 @@
         NSDictionary *encAttrs = [[NSFileManager defaultManager] attributesOfItemAtPath:self.currentTempEnc error:nil];
         NSString *encSizeStr = [NSByteCountFormatter stringFromByteCount:[encAttrs fileSize] countStyle:NSByteCountFormatterCountStyleFile];
         NSString *encSha = [FVCryptoEngine sha256ForFileAtPath:self.currentTempEnc error:nil];
-        safeLog([NSString stringWithFormat:@"✅ 加密完成！密文体积: %@, SHA256: %@", encSizeStr, encSha], NO);
+        safeLog([NSString stringWithFormat:@"[STAGE 2/3] 加密完成，密文体积: %@ (SHA256: %@)", encSizeStr, encSha], NO);
         safeProgress(@"加密归档", 0.66, @"加密完成");
 
         // Remove intermediate unencrypted tar.gz
@@ -187,7 +186,7 @@
         self.currentTempTar = nil;
 
         // STAGE 3: Cloudflare R2 Upload
-        safeLog(@"☁️ [阶段 3/3] 正在上传至 Cloudflare R2...", NO);
+        safeLog(@"[STAGE 3/3] 上传至 Cloudflare R2...", NO);
         safeProgress(@"传输到 Cloudflare", 0.70, @"正在计算 SigV4 授权并建立连接...");
 
         NSString *prefix = self.cloudflareConfig.remotePrefix ?: @"backups/";
@@ -195,7 +194,7 @@
             prefix = [prefix stringByAppendingString:@"/"];
         }
         NSString *remoteObjectKey = [NSString stringWithFormat:@"%@%@.flarevault", prefix, baseFileName];
-        safeLog([NSString stringWithFormat:@"🎯 目标 Bucket: '%@', 对象键: '%@'", self.cloudflareConfig.bucketName, remoteObjectKey], NO);
+        safeLog([NSString stringWithFormat:@"[INFO] 目标 Bucket: '%@', 对象键: '%@'", self.cloudflareConfig.bucketName, remoteObjectKey], NO);
 
         self.activeUploader = [[FVCloudflareUploader alloc] initWithConfig:self.cloudflareConfig];
         self.activeUploader.statusLogBlock = ^(NSString *logMsg) {
@@ -212,11 +211,11 @@
             safeProgress(@"传输到 Cloudflare", overall, statusText);
         } completion:^(BOOL success, NSString * _Nullable remoteUrl, NSError * _Nullable error) {
             if (success) {
-                safeLog(@"🎉 恭喜！数据打包、非对称加密并上传 Cloudflare 成功！", NO);
-                safeLog([NSString stringWithFormat:@"🔗 远程资源地址: %@", remoteUrl], NO);
+                safeLog(@"[OK] 数据打包、非对称加密并上传 Cloudflare 成功", NO);
+                safeLog([NSString stringWithFormat:@"[OK] 远程资源地址: %@", remoteUrl], NO);
                 safeProgress(@"全部完成", 1.0, @"已成功上传到 Cloudflare R2");
             } else {
-                safeLog([NSString stringWithFormat:@"[错误] 上传 Cloudflare 失败: %@", error.localizedDescription], YES);
+                safeLog([NSString stringWithFormat:@"[ERROR] 上传 Cloudflare 失败: %@", error.localizedDescription], YES);
             }
 
             [self cleanupTempFiles];
