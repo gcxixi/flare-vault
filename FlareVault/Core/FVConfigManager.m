@@ -22,6 +22,7 @@ static NSString * const kFVPrefLazyChunkJitter = @"FVLazyChunkJitter";
 
 static NSString * const kFVPrefUseDefaultExcludes = @"FVUseDefaultExcludes";
 static NSString * const kFVPrefCustomExcludeString = @"FVCustomExcludeString";
+static NSString * const kFVPrefIncrementalBackupEnabled = @"FVIncrementalBackupEnabled";
 
 static NSString * const kFVKeychainService = @"com.flarevault.r2credentials";
 
@@ -47,6 +48,7 @@ static NSString * const kFVKeychainService = @"com.flarevault.r2credentials";
         _lazyChunkJitter = YES;
         _useDefaultExcludes = YES;
         _customExcludeString = @"";
+        _incrementalBackupEnabled = YES;
         [self loadSettings];
     }
     return self;
@@ -81,6 +83,12 @@ static NSString * const kFVKeychainService = @"com.flarevault.r2credentials";
     }
     _customExcludeString = [defaults stringForKey:kFVPrefCustomExcludeString] ?: @"";
 
+    if ([defaults objectForKey:kFVPrefIncrementalBackupEnabled]) {
+        _incrementalBackupEnabled = [defaults boolForKey:kFVPrefIncrementalBackupEnabled];
+    } else {
+        _incrementalBackupEnabled = YES;
+    }
+
     if (_rememberCredentialsInKeychain) {
         [self loadSecretsFromKeychain];
     }
@@ -101,6 +109,7 @@ static NSString * const kFVKeychainService = @"com.flarevault.r2credentials";
     [defaults setBool:_lazyChunkJitter forKey:kFVPrefLazyChunkJitter];
     [defaults setBool:_useDefaultExcludes forKey:kFVPrefUseDefaultExcludes];
     if (_customExcludeString) [defaults setObject:_customExcludeString forKey:kFVPrefCustomExcludeString];
+    [defaults setBool:_incrementalBackupEnabled forKey:kFVPrefIncrementalBackupEnabled];
     [defaults synchronize];
 
     if (_rememberCredentialsInKeychain) {

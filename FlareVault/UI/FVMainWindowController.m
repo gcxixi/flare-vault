@@ -11,6 +11,7 @@
 #import "../Core/FVConfigManager.h"
 #import "../Core/FVCloudflareUploader.h"
 #import "../Core/FVTaskPipeline.h"
+#import "../Core/FVSnapshotManager.h"
 
 @interface FVMainWindowController () <FVDragDropViewDelegate, NSTabViewDelegate>
 
@@ -18,6 +19,7 @@
 @property (nonatomic, strong) NSTextField *dirPathField;
 @property (nonatomic, strong) NSButton *browseDirButton;
 @property (nonatomic, strong) NSTextField *dirStatsLabel;
+@property (nonatomic, strong) NSButton *incrementalBackupCheckbox;
 @property (nonatomic, strong) NSButton *defaultExcludesCheckbox;
 @property (nonatomic, strong) NSTextField *customExcludesField;
 @property (nonatomic, strong) FVDragDropView *dragDropView;
@@ -146,14 +148,22 @@
     curY -= 22;
     self.dirStatsLabel = [self labelWithText:@"未选择目录" fontSize:11 bold:NO];
     self.dirStatsLabel.textColor = [NSColor secondaryLabelColor];
-    self.dirStatsLabel.frame = NSMakeRect(26, curY, 440, 16);
+    self.dirStatsLabel.frame = NSMakeRect(26, curY, 430, 16);
     [container addSubview:self.dirStatsLabel];
 
-    self.defaultExcludesCheckbox = [NSButton checkboxWithTitle:@"排除开发与缓存 (node_modules, .venv, .git 等)"
+    self.incrementalBackupCheckbox = [NSButton checkboxWithTitle:@"增量备份 (基于快照差异)"
+                                                          target:self
+                                                          action:@selector(incrementalBackupToggled:)];
+    self.incrementalBackupCheckbox.state = [FVConfigManager sharedManager].incrementalBackupEnabled ? NSControlStateValueOn : NSControlStateValueOff;
+    self.incrementalBackupCheckbox.frame = NSMakeRect(462, curY, 178, 18);
+    self.incrementalBackupCheckbox.font = [NSFont systemFontOfSize:11 weight:NSFontWeightRegular];
+    [container addSubview:self.incrementalBackupCheckbox];
+
+    self.defaultExcludesCheckbox = [NSButton checkboxWithTitle:@"排除开发与缓存 (node_modules 等)"
                                                         target:self
                                                         action:@selector(excludeSettingsChanged:)];
     self.defaultExcludesCheckbox.state = NSControlStateValueOn;
-    self.defaultExcludesCheckbox.frame = NSMakeRect(480, curY, 396, 18);
+    self.defaultExcludesCheckbox.frame = NSMakeRect(646, curY, 230, 18);
     self.defaultExcludesCheckbox.font = [NSFont systemFontOfSize:11 weight:NSFontWeightRegular];
     [container addSubview:self.defaultExcludesCheckbox];
 
@@ -515,6 +525,7 @@
     [self updateLazyControlsState];
 
     self.defaultExcludesCheckbox.state = cfg.useDefaultExcludes ? NSControlStateValueOn : NSControlStateValueOff;
+    self.incrementalBackupCheckbox.state = cfg.incrementalBackupEnabled ? NSControlStateValueOn : NSControlStateValueOff;
     if (cfg.customExcludeString.length > 0) {
         self.customExcludesField.stringValue = cfg.customExcludeString;
     }
@@ -536,7 +547,14 @@
     cfg.lazyChunkJitter = (self.lazyChunkJitterCheckbox.state == NSControlStateValueOn);
     cfg.useDefaultExcludes = (self.defaultExcludesCheckbox.state == NSControlStateValueOn);
     cfg.customExcludeString = self.customExcludesField.stringValue;
+    cfg.incrementalBackupEnabled = (self.incrementalBackupCheckbox.state == NSControlStateValueOn);
     [cfg saveSettings];
+}
+
+- (void)incrementalBackupToggled:(id)sender {
+    (void)sender;
+    [self saveCurrentConfiguration];
+    [self updateSelectedDirectory:self.dirPathField.stringValue];
 }
 
 - (void)excludeSettingsChanged:(id)sender {
@@ -611,17 +629,25 @@
     }
 
     NSArray<NSString *> *excludes = [[FVConfigManager sharedManager] effectiveExcludePatterns];
+    BOOL isInc = (self.incrementalBackupCheckbox.state == NSControlStateValueOn);
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
         FVDirectoryStats *stats = [FVArchiver inspectDirectoryAtPath:path excludePatterns:excludes];
+        NSDictionary *snapInfo = isInc ? [[FVSnapshotManager sharedManager] snapshotInfoForDirectory:path] : nil;
         dispatch_async(dispatch_get_main_queue(), ^{
             self.dirStatsLabel.textColor = [NSColor secondaryLabelColor];
+            NSMutableString *msg = [NSMutableString stringWithFormat:@"已选: %lu 个文件 (%@)",
+                                    (unsigned long)stats.fileCount, stats.formattedSize];
             if (stats.excludedCount > 0) {
-                self.dirStatsLabel.stringValue = [NSString stringWithFormat:@"已选: %lu 个文件 (%@) | 已排除 %lu 个缓存/匹配项",
-                                                  (unsigned long)stats.fileCount, stats.formattedSize, (unsigned long)stats.excludedCount];
-            } else {
-                self.dirStatsLabel.stringValue = [NSString stringWithFormat:@"已选: %lu 个文件 (%@)",
-                                                  (unsigned long)stats.fileCount, stats.formattedSize];
+                [msg appendFormat:@" | 已排除 %lu 项", (unsigned long)stats.excludedCount];
             }
+            if (isInc) {
+                if (snapInfo) {
+                    [msg appendFormat:@" | 增量快照: #%@", snapInfo[@"sequenceNumber"]];
+                } else {
+                    [msg appendString:@" | 增量模式 (下次建基线)"];
+                }
+            }
+            self.dirStatsLabel.stringValue = msg;
         });
     });
 }
@@ -844,10 +870,12 @@
     self.progressLabel.stringValue = @"任务启动中...";
 
     NSArray<NSString *> *excludes = [[FVConfigManager sharedManager] effectiveExcludePatterns];
+    BOOL isInc = (self.incrementalBackupCheckbox.state == NSControlStateValueOn);
     self.currentPipeline = [[FVTaskPipeline alloc] initWithDirectoryPath:dir
                                                               publicKey:pubKey
                                                        cloudflareConfig:cfConfig
-                                                        excludePatterns:excludes];
+                                                        excludePatterns:excludes
+                                                            incremental:isInc];
 
     __weak typeof(self) weakSelf = self;
     [self.currentPipeline startWithLogHandler:^(NSString * _Nonnull message, BOOL isError) {
@@ -862,6 +890,7 @@
         if (success) {
             weakSelf.progressBar.doubleValue = 1.0;
             weakSelf.progressLabel.stringValue = @"任务完成，数据已加密上传至 Cloudflare R2。";
+            [weakSelf updateSelectedDirectory:dir];
             NSAlert *alert = [[NSAlert alloc] init];
             alert.messageText = @"打包加密与上传完成";
             alert.informativeText = [NSString stringWithFormat:@"目录已完成非对称加密并上传至 Cloudflare R2。\n\n远程对象地址:\n%@", remoteUrl ?: @""];

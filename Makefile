@@ -12,6 +12,7 @@ RESOURCES = $(CONTENTS)/Resources
 CORE_SRCS = FlareVault/Core/FVCryptoEngine.m \
             FlareVault/Core/FVKeyManager.m \
             FlareVault/Core/FVArchiver.m \
+            FlareVault/Core/FVSnapshotManager.m \
             FlareVault/Core/FVCloudflareUploader.m \
             FlareVault/Core/FVConfigManager.m \
             FlareVault/Core/FVTaskPipeline.m
@@ -53,6 +54,8 @@ test:
 	@clang $(CFLAGS) $(FRAMEWORKS) FlareVault/Core/FVCryptoEngine.m FlareVault/Core/FVKeyManager.m Tests/test_keymanager.m -o $(BUILD_DIR)/test_keymanager && $(BUILD_DIR)/test_keymanager
 	@echo "==> Running Archiver Tests..."
 	@clang $(CFLAGS) $(FRAMEWORKS) FlareVault/Core/FVArchiver.m Tests/test_archiver.m -o $(BUILD_DIR)/test_archiver && $(BUILD_DIR)/test_archiver
+	@echo "==> Running Snapshot Differential Tests..."
+	@clang $(CFLAGS) $(FRAMEWORKS) FlareVault/Core/FVArchiver.m FlareVault/Core/FVSnapshotManager.m Tests/test_snapshot.m -o $(BUILD_DIR)/test_snapshot && $(BUILD_DIR)/test_snapshot
 	@echo "==> Running Uploader Tests..."
 	@clang $(CFLAGS) $(FRAMEWORKS) FlareVault/Core/FVCloudflareUploader.m Tests/test_uploader.m -o $(BUILD_DIR)/test_uploader && $(BUILD_DIR)/test_uploader
 	@echo "==> Running Lazy Upload Stochastic Math Tests..."

@@ -200,39 +200,72 @@ def aes_decrypt(input_path, ciphertext_offset, output_path, aes_key, iv):
 def main():
     parser = argparse.ArgumentParser(description="FlareVault Decryption Companion")
     parser.add_argument("-k", "--key", required=True, help="Path to RSA Private Key PEM")
-    parser.add_argument("-i", "--input", required=True, help="Path to .flarevault archive")
+    parser.add_argument("-i", "--input", required=True, nargs="+", help="Path to .flarevault archive(s) (in chronological order)")
     parser.add_argument("-o", "--output", required=True, help="Destination directory to unpack")
     parser.add_argument("-p", "--pass", dest="password", default=None, help="Password for private key (if encrypted)")
     args = parser.parse_args()
 
-    print(f"[*] Reading archive: {args.input}")
-    with open(args.input, "rb") as f:
-        hdr = parse_header(f)
-    
-    print(f"[*] Archive metadata: {hdr['meta_json']}")
-    print(f"[*] Decrypting session keys using: {args.key}...")
-    aes_key, hmac_key = rsa_decrypt_session_key(hdr["enc_key_data"], args.key, args.password)
-    
-    print("[*] Authenticating archive with HMAC-SHA256...")
-    verify_hmac(args.input, hdr, hmac_key)
-    print("    -> HMAC Authentication PASSED!")
-    
-    with tempfile.NamedTemporaryFile(suffix=".tar.gz", delete=False) as tmp_tar:
-        tmp_tar_path = tmp_tar.name
-    
-    try:
-        print("[*] Decrypting AES-256-CBC payload...")
-        aes_decrypt(args.input, hdr["ciphertext_offset"], tmp_tar_path, aes_key, hdr["iv"])
+    input_files = []
+    for item in args.input:
+        for sub in item.split(","):
+            s = sub.strip()
+            if s:
+                input_files.append(s)
+
+    os.makedirs(args.output, exist_ok=True)
+    print(f"=== FlareVault Decryption (Archives: {len(input_files)}) ===")
+
+    for idx, archive_path in enumerate(input_files):
+        print(f"\n[{idx + 1}/{len(input_files)}] Reading archive: {archive_path}")
+        with open(archive_path, "rb") as f:
+            hdr = parse_header(f)
         
-        print(f"[*] Unpacking tar.gz into: {args.output}...")
-        os.makedirs(args.output, exist_ok=True)
-        with tarfile.open(tmp_tar_path, "r:gz") as tar:
-            tar.extractall(path=args.output)
+        meta = hdr["meta_json"]
+        btype = meta.get("backup_type", "full")
+        seq = meta.get("sequence", 0)
+        print(f"[*] Archive metadata: type={btype}, sequence=#{seq}, base={meta.get('base_backup_id', 'N/A')}")
+        print(f"[*] Decrypting session keys using: {args.key}...")
+        aes_key, hmac_key = rsa_decrypt_session_key(hdr["enc_key_data"], args.key, args.password)
         
-        print(f"[+] SUCCESS! Archive restored completely to: {args.output}")
-    finally:
-        if os.path.exists(tmp_tar_path):
-            os.unlink(tmp_tar_path)
+        print("[*] Authenticating archive with HMAC-SHA256...")
+        verify_hmac(archive_path, hdr, hmac_key)
+        print("    -> HMAC Authentication PASSED!")
+        
+        with tempfile.NamedTemporaryFile(suffix=".tar.gz", delete=False) as tmp_tar:
+            tmp_tar_path = tmp_tar.name
+        
+        try:
+            print("[*] Decrypting AES-256-CBC payload...")
+            aes_decrypt(archive_path, hdr["ciphertext_offset"], tmp_tar_path, aes_key, hdr["iv"])
+            
+            print(f"[*] Unpacking files into: {args.output}...")
+            with tarfile.open(tmp_tar_path, "r:gz") as tar:
+                tar.extractall(path=args.output)
+            
+            # Apply tombstones
+            deleted_files = meta.get("deleted_files", [])
+            folder_name = meta.get("folder_name", "")
+            if deleted_files:
+                del_count = 0
+                for d_rel in deleted_files:
+                    target = os.path.join(args.output, d_rel)
+                    if not os.path.exists(target) and folder_name:
+                        target = os.path.join(args.output, folder_name, d_rel)
+                    if os.path.exists(target):
+                        if os.path.isdir(target):
+                            import shutil
+                            shutil.rmtree(target, ignore_errors=True)
+                        else:
+                            os.remove(target)
+                        del_count += 1
+                print(f"    -> Applied {del_count} file deletions (tombstones).")
+            
+            print(f"[+] Archive {os.path.basename(archive_path)} restored successfully.")
+        finally:
+            if os.path.exists(tmp_tar_path):
+                os.unlink(tmp_tar_path)
+
+    print(f"\n[+] SUCCESS! All archives applied completely to: {args.output}")
 
 if __name__ == "__main__":
     main()

@@ -191,6 +191,86 @@ static BOOL MatchesAnyPattern(NSString *name, NSArray<NSString *> *patterns) {
     return YES;
 }
 
++ (BOOL)archiveDirectoryAtPath:(NSString *)sourceDirPath
+                 relativeFiles:(NSArray<NSString *> *)relativePaths
+             toDestinationPath:(NSString *)destinationTarGzPath
+                         error:(NSError * _Nullable * _Nullable)error
+{
+    NSFileManager *fm = [NSFileManager defaultManager];
+    BOOL isDir = NO;
+    if (![fm fileExistsAtPath:sourceDirPath isDirectory:&isDir] || !isDir) {
+        if (error) {
+            *error = [NSError errorWithDomain:FVArchiverErrorDomain
+                                         code:-1
+                                     userInfo:@{NSLocalizedDescriptionKey: [NSString stringWithFormat:@"Source directory does not exist: %@", sourceDirPath]}];
+        }
+        return NO;
+    }
+
+    if ([fm fileExistsAtPath:destinationTarGzPath]) {
+        [fm removeItemAtPath:destinationTarGzPath error:nil];
+    }
+
+    NSString *parentDir = [sourceDirPath stringByDeletingLastPathComponent];
+    NSString *baseName = [sourceDirPath lastPathComponent];
+
+    NSString *fileListPath = nil;
+    if (relativePaths.count == 0) {
+        fileListPath = @"/dev/null";
+    } else {
+        fileListPath = [NSTemporaryDirectory() stringByAppendingPathComponent:[NSString stringWithFormat:@"fv_tar_files_%u.txt", arc4random()]];
+        NSMutableString *fileListContent = [NSMutableString string];
+        for (NSString *relPath in relativePaths) {
+            NSString *trimmed = [relPath stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+            if (trimmed.length > 0) {
+                [fileListContent appendFormat:@"%@/%@\n", baseName, trimmed];
+            }
+        }
+        [fileListContent writeToFile:fileListPath atomically:YES encoding:NSUTF8StringEncoding error:nil];
+    }
+
+    NSMutableArray<NSString *> *args = [NSMutableArray arrayWithObjects:@"-czf", destinationTarGzPath, @"-C", parentDir, @"-T", fileListPath, nil];
+
+    NSTask *tarTask = [[NSTask alloc] init];
+    tarTask.executableURL = [NSURL fileURLWithPath:@"/usr/bin/tar"];
+    tarTask.arguments = args;
+
+    NSPipe *errPipe = [NSPipe pipe];
+    tarTask.standardError = errPipe;
+
+    @try {
+        [tarTask launch];
+        [tarTask waitUntilExit];
+    } @catch (NSException *ex) {
+        if (![fileListPath isEqualToString:@"/dev/null"]) {
+            [fm removeItemAtPath:fileListPath error:nil];
+        }
+        if (error) {
+            *error = [NSError errorWithDomain:FVArchiverErrorDomain
+                                         code:-2
+                                     userInfo:@{NSLocalizedDescriptionKey: [NSString stringWithFormat:@"Failed to launch tar: %@", ex.reason]}];
+        }
+        return NO;
+    }
+
+    if (![fileListPath isEqualToString:@"/dev/null"]) {
+        [fm removeItemAtPath:fileListPath error:nil];
+    }
+
+    if (tarTask.terminationStatus != 0) {
+        NSData *errData = [[errPipe fileHandleForReading] readDataToEndOfFile];
+        NSString *errMsg = [[NSString alloc] initWithData:errData encoding:NSUTF8StringEncoding];
+        if (error) {
+            *error = [NSError errorWithDomain:FVArchiverErrorDomain
+                                         code:tarTask.terminationStatus
+                                     userInfo:@{NSLocalizedDescriptionKey: [NSString stringWithFormat:@"tar failed: %@", errMsg]}];
+        }
+        return NO;
+    }
+
+    return YES;
+}
+
 + (BOOL)extractArchiveAtPath:(NSString *)tarGzPath
           toDestinationPath:(NSString *)destinationDirPath
                       error:(NSError * _Nullable * _Nullable)error

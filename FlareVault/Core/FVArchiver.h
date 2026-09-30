@@ -50,6 +50,14 @@ extern NSString * const FVArchiverErrorDomain;
                excludePatterns:(nullable NSArray<NSString *> *)excludePatterns
                          error:(NSError * _Nullable * _Nullable)error;
 
+/// Archives only a specific list of relative file paths from sourceDirPath into a .tar.gz archive.
+/// Each path in relativeFiles is relative to sourceDirPath (e.g. "subdir/a.txt").
+/// Inside the archive, files are packaged prefixed with [sourceDirPath lastPathComponent].
++ (BOOL)archiveDirectoryAtPath:(NSString *)sourceDirPath
+                 relativeFiles:(NSArray<NSString *> *)relativePaths
+             toDestinationPath:(NSString *)destinationTarGzPath
+                         error:(NSError * _Nullable * _Nullable)error;
+
 /// Extracts a .tar.gz archive into a destination directory.
 + (BOOL)extractArchiveAtPath:(NSString *)tarGzPath
           toDestinationPath:(NSString *)destinationDirPath

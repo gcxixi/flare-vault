@@ -3,6 +3,7 @@
 //  FlareVault Companion Decryption CLI
 //
 //  Decodes and unpacks .flarevault archives using the Private Key.
+//  Supports single-archive full restore and multi-generation incremental restore chains.
 //
 
 #import <Foundation/Foundation.h>
@@ -12,10 +13,10 @@
 static void printUsage(const char *progName) {
     fprintf(stderr, "FlareVault Decryption CLI (macOS / Linux)\n");
     fprintf(stderr, "Usage:\n");
-    fprintf(stderr, "  %s -k <private_key.pem> -i <input.flarevault> -o <output_dir> [-p <password>]\n\n", progName);
+    fprintf(stderr, "  %s -k <private_key.pem> -o <output_dir> -i <full.flarevault> [-i <inc1.flarevault> ...] [-p <password>]\n\n", progName);
     fprintf(stderr, "Options:\n");
     fprintf(stderr, "  -k, --key       Path to RSA Private Key PEM\n");
-    fprintf(stderr, "  -i, --input     Path to encrypted .flarevault archive\n");
+    fprintf(stderr, "  -i, --input     Path to encrypted .flarevault archive (can be specified multiple times for incremental chains)\n");
     fprintf(stderr, "  -o, --output    Destination directory to unpack restored files\n");
     fprintf(stderr, "  -p, --pass      Password for encrypted private key (if applicable)\n");
     fprintf(stderr, "  -h, --help      Show this help message\n");
@@ -24,7 +25,7 @@ static void printUsage(const char *progName) {
 int main(int argc, const char * argv[]) {
     @autoreleasepool {
         NSString *keyPath = nil;
-        NSString *inputPath = nil;
+        NSMutableArray<NSString *> *inputPaths = [NSMutableArray array];
         NSString *outputDir = nil;
         NSString *password = nil;
 
@@ -33,7 +34,12 @@ int main(int argc, const char * argv[]) {
             if (([arg isEqualToString:@"-k"] || [arg isEqualToString:@"--key"]) && i + 1 < argc) {
                 keyPath = [NSString stringWithUTF8String:argv[++i]];
             } else if (([arg isEqualToString:@"-i"] || [arg isEqualToString:@"--input"]) && i + 1 < argc) {
-                inputPath = [NSString stringWithUTF8String:argv[++i]];
+                NSString *inVal = [NSString stringWithUTF8String:argv[++i]];
+                NSArray *parts = [inVal componentsSeparatedByString:@","];
+                for (NSString *p in parts) {
+                    NSString *trimmed = [p stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
+                    if (trimmed.length > 0) [inputPaths addObject:trimmed];
+                }
             } else if (([arg isEqualToString:@"-o"] || [arg isEqualToString:@"--output"]) && i + 1 < argc) {
                 outputDir = [NSString stringWithUTF8String:argv[++i]];
             } else if (([arg isEqualToString:@"-p"] || [arg isEqualToString:@"--pass"]) && i + 1 < argc) {
@@ -41,18 +47,20 @@ int main(int argc, const char * argv[]) {
             } else if ([arg isEqualToString:@"-h"] || [arg isEqualToString:@"--help"]) {
                 printUsage(argv[0]);
                 return 0;
+            } else if (![arg hasPrefix:@"-"]) {
+                [inputPaths addObject:arg];
             }
         }
 
-        if (!keyPath || !inputPath || !outputDir) {
+        if (!keyPath || inputPaths.count == 0 || !outputDir) {
             printUsage(argv[0]);
             return 1;
         }
 
         printf("=== FlareVault Archive Decryption ===\n");
-        printf("Encrypted Archive: %s\n", [inputPath UTF8String]);
         printf("Private Key:       %s\n", [keyPath UTF8String]);
         printf("Output Directory:  %s\n", [outputDir UTF8String]);
+        printf("Archive Count:     %lu\n", (unsigned long)inputPaths.count);
 
         // 1. Load private key
         NSString *privKeyPEM = [NSString stringWithContentsOfFile:keyPath encoding:NSUTF8StringEncoding error:nil];
@@ -110,49 +118,91 @@ int main(int argc, const char * argv[]) {
             return 1;
         }
 
-        // 2. Decrypt .flarevault container to temporary .tar.gz
-        NSString *tempTarPath = [NSTemporaryDirectory() stringByAppendingPathComponent:[NSString stringWithFormat:@"flare_restored_%u.tar.gz", arc4random()]];
-        NSDictionary *metadata = nil;
-        NSError *err = nil;
+        NSFileManager *fm = [NSFileManager defaultManager];
+        if (![fm fileExistsAtPath:outputDir]) {
+            [fm createDirectoryAtPath:outputDir withIntermediateDirectories:YES attributes:nil error:nil];
+        }
 
-        printf("Authenticating HMAC and decrypting archive payload...\n");
-        BOOL decOk = [FVCryptoEngine decryptFileAtPath:inputPath
-                                         toOutputPath:tempTarPath
-                                       withPrivateKey:privKey
-                                             metadata:&metadata
-                                             progress:^(double progress, uint64_t bytesProcessed, uint64_t totalBytes) {
-            (void)bytesProcessed; (void)totalBytes;
-            printf("\r[Decrypt Progress] %.1f%%", progress * 100.0);
-            fflush(stdout);
-        } error:&err];
+        // 2. Iterate through all archives in sequence
+        for (NSUInteger idx = 0; idx < inputPaths.count; idx++) {
+            NSString *archivePath = inputPaths[idx];
+            printf("\n[%lu/%lu] Processing Archive: %s\n", (unsigned long)(idx + 1), (unsigned long)inputPaths.count, [archivePath.lastPathComponent UTF8String]);
+
+            if (![fm fileExistsAtPath:archivePath]) {
+                fprintf(stderr, "Error: Archive file not found: %s\n", [archivePath UTF8String]);
+                CFRelease(privKey);
+                return 1;
+            }
+
+            NSString *tempTarPath = [NSTemporaryDirectory() stringByAppendingPathComponent:[NSString stringWithFormat:@"flare_restored_%u_%lu.tar.gz", arc4random(), (unsigned long)idx]];
+            NSDictionary *metadata = nil;
+            NSError *err = nil;
+
+            printf("  -> Authenticating HMAC and decrypting payload...\n");
+            BOOL decOk = [FVCryptoEngine decryptFileAtPath:archivePath
+                                             toOutputPath:tempTarPath
+                                           withPrivateKey:privKey
+                                                 metadata:&metadata
+                                                 progress:^(double progress, uint64_t bytesProcessed, uint64_t totalBytes) {
+                (void)bytesProcessed; (void)totalBytes;
+                printf("\r  -> [Progress] %.1f%%", progress * 100.0);
+                fflush(stdout);
+            } error:&err];
+
+            printf("\n");
+            if (!decOk) {
+                fprintf(stderr, "Error: Decryption failed for %s: %s\n", [archivePath.lastPathComponent UTF8String], [err.localizedDescription UTF8String]);
+                [fm removeItemAtPath:tempTarPath error:nil];
+                CFRelease(privKey);
+                return 1;
+            }
+
+            NSString *bType = metadata[@"backup_type"] ?: @"full";
+            NSNumber *seq = metadata[@"sequence"] ?: @(0);
+            printf("  -> Type: %s (Sequence: #%d, Base: %s)\n",
+                   [bType UTF8String],
+                   [seq intValue],
+                   [metadata[@"base_backup_id"] UTF8String] ?: "N/A");
+
+            // Extract tar.gz into target directory
+            printf("  -> Unpacking files into: %s...\n", [outputDir UTF8String]);
+            BOOL extOk = [FVArchiver extractArchiveAtPath:tempTarPath toDestinationPath:outputDir error:&err];
+            [fm removeItemAtPath:tempTarPath error:nil];
+
+            if (!extOk) {
+                fprintf(stderr, "Error: Unpacking failed: %s\n", [err.localizedDescription UTF8String]);
+                CFRelease(privKey);
+                return 1;
+            }
+
+            // Apply tombstones (deleted files) if present in metadata
+            NSArray<NSString *> *deletedFiles = metadata[@"deleted_files"];
+            if ([deletedFiles isKindOfClass:[NSArray class]] && deletedFiles.count > 0) {
+                NSString *folderName = metadata[@"folder_name"] ?: @"";
+                NSUInteger removedCount = 0;
+                for (NSString *delPath in deletedFiles) {
+                    NSString *targetDel = [outputDir stringByAppendingPathComponent:delPath];
+                    if (![fm fileExistsAtPath:targetDel] && folderName.length > 0) {
+                        targetDel = [[outputDir stringByAppendingPathComponent:folderName] stringByAppendingPathComponent:delPath];
+                    }
+                    if ([fm fileExistsAtPath:targetDel]) {
+                        [fm removeItemAtPath:targetDel error:nil];
+                        removedCount++;
+                    }
+                }
+                printf("  -> Applied %lu file deletions (tombstones).\n", (unsigned long)removedCount);
+            }
+
+            if ([bType isEqualToString:@"incremental"]) {
+                printf("  -> Applied incremental snapshot #%d successfully.\n", [seq intValue]);
+            } else {
+                printf("  -> Base full backup restored successfully.\n");
+            }
+        }
 
         CFRelease(privKey);
-        printf("\n");
 
-        if (!decOk) {
-            fprintf(stderr, "Error: Decryption failed: %s\n", [err.localizedDescription UTF8String]);
-            [[NSFileManager defaultManager] removeItemAtPath:tempTarPath error:nil];
-            return 1;
-        }
-
-        if (metadata) {
-            printf("Container Metadata: %s (Original size: %llu bytes, Files: %lu)\n",
-                   [metadata[@"folder_name"] UTF8String] ?: "Unknown",
-                   [metadata[@"original_bytes"] unsignedLongLongValue],
-                   [metadata[@"file_count"] unsignedLongValue]);
-        }
-
-        // 3. Extract tar.gz into target directory
-        printf("Unpacking restored tar.gz into: %s...\n", [outputDir UTF8String]);
-        BOOL extOk = [FVArchiver extractArchiveAtPath:tempTarPath toDestinationPath:outputDir error:&err];
-        [[NSFileManager defaultManager] removeItemAtPath:tempTarPath error:nil];
-
-        if (!extOk) {
-            fprintf(stderr, "Error: Unpacking failed: %s\n", [err.localizedDescription UTF8String]);
-            return 1;
-        }
-
-        printf("✅ Successfully restored and unpacked archive into: %s\n", [outputDir UTF8String]);
+        printf("\n✅ Successfully restored complete directory snapshot (all archives applied) into: %s\n", [outputDir UTF8String]);
     }
     return 0;
 }

@@ -32,6 +32,9 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, assign) BOOL useDefaultExcludes;
 @property (nonatomic, copy, nullable) NSString *customExcludeString;
 
+// Incremental Backup Settings
+@property (nonatomic, assign) BOOL incrementalBackupEnabled;
+
 /// Returns the effective array of exclude patterns combining default and custom.
 - (NSArray<NSString *> *)effectiveExcludePatterns;
 
