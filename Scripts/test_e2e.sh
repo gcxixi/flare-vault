@@ -21,7 +21,7 @@ echo "Test working directory: $TEST_ROOT"
 mkdir -p "$REPO_DIR/build"
 if [ ! -f "$REPO_DIR/build/flare-vault-decrypt" ]; then
     echo "[*] Compiling flare-vault-decrypt CLI..."
-    clang -Wall -Wextra -O2 -fobjc-arc -framework Cocoa -framework Security \
+    clang -Wall -Wextra -O2 -fobjc-arc -framework Cocoa -framework Security -lz \
         "$REPO_DIR/Tools/flare-vault-decrypt.m" \
         "$REPO_DIR/FlareVault/Core/FVCryptoEngine.m" \
         "$REPO_DIR/FlareVault/Core/FVArchiver.m" \
@@ -119,7 +119,7 @@ int main(int argc, const char *argv[]) {
 }
 EOF
 
-clang -fobjc-arc -framework Cocoa -framework Security \
+clang -fobjc-arc -framework Cocoa -framework Security -lz \
     -I "$REPO_DIR" \
     "$REPO_DIR/FlareVault/Core/FVArchiver.m" \
     "$REPO_DIR/FlareVault/Core/FVCryptoEngine.m" \

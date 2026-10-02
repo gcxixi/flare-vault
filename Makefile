@@ -1,6 +1,6 @@
 CC = clang
 CFLAGS = -Wall -Wextra -O2 -fobjc-arc -mmacosx-version-min=12.0
-FRAMEWORKS = -framework Cocoa -framework Security
+FRAMEWORKS = -framework Cocoa -framework Security -lz
 
 APP_NAME = FlareVault
 BUILD_DIR = build

@@ -22,7 +22,7 @@
   - 支持与 macOS 钥匙串（Keychain Generic Password）双向同步与管理公钥。
   - 支持直接粘贴或载入标准 PEM 公钥（`-----BEGIN PUBLIC KEY-----`）。
 - **📦 工业级流式打包与混合加密**：
-  - 使用 macOS 原生 `tar + gzip` 打包，完整保留目录结构、文件权限（POSIX）、符号链接与时间戳。
+  - **纯内存与进程内流式打包（Zero-Subprocess）**：原生代码实现 POSIX USTAR / GNU 规范的 TAR 打包与 `zlib` 流式压缩，**不调用 `/usr/bin/tar` 或衍生子进程**，彻底消除被安全软件（EDR / 杀软）作为恶意子进程拦截或告警的风险。完整保留目录结构、文件权限（POSIX）、符号链接与时间戳。
   - 采用**混合信封加密体制**：动态生成一次性 256-bit AES 会话密钥与 256-bit HMAC 密钥，用 RSA-OAEP-SHA256 公钥加密信封。
   - 流式分块分段加密（1MB 缓冲），处理数十 GB 超大目录时常驻内存仍小于 15MB。
   - **Encrypt-then-MAC 强认证**：全报文计算 HMAC-SHA256，严防位翻转与密文篡改。
@@ -36,7 +36,7 @@
 - **🧹 rsync 风格目录排除过滤（Exclude Filters）**：
   - **开箱即用内置规则**：默认内置并自动过滤现代项目中最庞大繁杂的开发与缓存缓冲目录，包括 `node_modules`、`node_moudles`、`.venv`、`venv`、`env`、`.env`、`__pycache__`、`*.pyc`、`*.pyo`、`.DS_Store`、`.git`、`.svn`、`.hg`、`build`、`dist`、`.cache`、`.next`、`.nuxt`、`target`、`Pods`、`DerivedData` 等。
   - **自定义排除通配符**：支持用户自定义输入类似 `rsync --exclude` 的排除通配规则（如 `*.tmp`, `test_data/`, `*.log`, `cache/*` 等），支持空格或逗号分隔。
-  - **高性能剪枝扫描与原生打包**：在目录预扫描时使用 `NSDirectoryEnumerator skipDescendants` 直接剪枝跳过被排除的庞大目录树（避免扫描数十万小文件），打包时将 `--exclude` 标志精准传递给 macOS 原生 `/usr/bin/tar`。
+  - **高性能剪枝扫描与进程内过滤**：在目录扫描与打包时使用 `NSDirectoryEnumerator skipDescendants` 直接剪枝跳过被排除的庞大目录树（避免扫描数十万小文件），零子进程原生打入压缩流。
 - **☁️ 直传 Cloudflare R2 对象存储**：
   - 原生 Objective-C 实现 AWS Signature Version 4 (SigV4) 鉴权。
   - 流式并发上传至 Cloudflare R2，实时显示传输百分比、已上传字节数及动态传输日志。
